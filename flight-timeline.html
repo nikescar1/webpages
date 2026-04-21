@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Austin Trip — Flight Timeline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b0d12; --surface: #10131a; --border: #1a1e2a;
+    --text: #c4c9d8; --muted: #40475e; --accent: #e6eaf5;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh; padding: 28px 24px 56px;
+    user-select: none;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 32px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  header .org { font-family:'IBM Plex Sans',sans-serif; font-weight:300; font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); }
+  header .title { font-size:12px; font-weight:600; color:var(--accent); letter-spacing:.06em; }
+  header .hint { margin-left:auto; font-size:9px; color:var(--muted); letter-spacing:.12em; }
+  .section-label { font-size:9px; letter-spacing:.28em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; padding-left:2px; }
+  .timeline-wrap { margin-bottom:40px; }
+  .timeline-container { position:relative; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:crosshair; overflow:hidden; }
+  .axis-row { display:flex; height:26px; border-bottom:1px solid var(--border); }
+  .axis-spacer { width:110px; min-width:110px; border-right:1px solid var(--border); flex-shrink:0; }
+  .axis-track { flex:1; position:relative; }
+  .time-tick { position:absolute; top:0; height:100%; display:flex; align-items:center; padding-left:4px; font-size:9px; color:var(--muted); border-left:1px solid var(--border); }
+  .person-row { display:flex; height:26px; border-bottom:1px solid #0f1219; }
+  .person-row:last-child { border-bottom:none; }
+  .person-name { width:110px; min-width:110px; font-size:10px; font-weight:500; color:var(--text); padding:0 8px 0 10px; display:flex; align-items:center; border-right:1px solid var(--border); background:var(--surface); position:relative; z-index:2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .person-track { flex:1; position:relative; overflow:hidden; }
+  .grid-line { position:absolute; top:0; width:1px; height:100%; background:var(--border); pointer-events:none; }
+  .event-pip { position:absolute; top:50%; transform:translate(-50%,-50%); width:10px; height:10px; border-radius:50%; }
+  .event-bar { position:absolute; top:7px; width:4px; height:12px; border-radius:2px; transform:translateX(-50%); }
+  .scrubber { position:absolute; top:0; bottom:0; width:1px; background:rgba(255,255,255,.88); pointer-events:none; z-index:20; display:none; box-shadow:0 0 10px rgba(255,255,255,.2); }
+  #readout { position:fixed; top:20px; right:24px; background:#0b0d12f0; border:1px solid #252b3d; border-radius:4px; padding:14px 16px; width:230px; display:none; z-index:200; backdrop-filter:blur(10px); }
+  #readout .r-time { font-size:15px; font-weight:600; color:var(--accent); margin-bottom:3px; letter-spacing:.04em; }
+  #readout .r-day { font-size:9px; color:var(--muted); letter-spacing:.18em; text-transform:uppercase; margin-bottom:11px; }
+  #readout .r-person { display:flex; align-items:center; gap:8px; padding:3px 0; font-size:11px; color:var(--text); }
+  #readout .r-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  #readout .r-ft { margin-left:auto; font-size:9px; color:var(--muted); }
+  #readout .r-empty { font-size:10px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <span class="org">Offsite</span>
+  <span class="title">Austin · Apr 25–29 2026</span>
+  <span class="hint">click + drag to scrub timeline</span>
+</header>
+<div id="readout">
+  <div class="r-time" id="rTime">—</div>
+  <div class="r-day" id="rDay">—</div>
+  <div id="rBody"></div>
+</div>
+<div class="timeline-wrap">
+  <div class="section-label">↓ Arrivals into Austin · Sun Apr 26</div>
+  <div class="timeline-container" id="arrWrap"></div>
+</div>
+<div class="timeline-wrap">
+  <div class="section-label">↑ Departures from Austin · Wed Apr 29</div>
+  <div class="timeline-container" id="depWrap"></div>
+</div>
+<script>
+const m = (h,mn) => h*60+mn;
+const people = ["Ali","Ethan","Zach","Mike","Oliver","Patrick","Paul","Rob","Wes","Rami","Jay","Harmeet","Drew","Jerry","Zephan","Bret"];
+
+const arrivals = {
+  Ali:{mins:m(14,36),label:"2:36 PM"},Ethan:{mins:m(13,8),label:"1:08 PM"},Zach:null,
+  Mike:{mins:m(14,20),label:"2:20 PM"},Oliver:null,Patrick:{mins:m(14,35),label:"2:35 PM"},
+  Paul:{mins:m(18,0),label:"6:00 PM"},Rob:{mins:m(15,33),label:"3:33 PM"},
+  Wes:{mins:m(13,8),label:"1:08 PM"},Rami:null,Jay:{mins:m(12,30),label:"12:30 PM"},
+  Harmeet:{mins:m(19,30),label:"7:30 PM"},Drew:{mins:m(17,49),label:"5:49 PM"},
+  Jerry:{mins:m(14,39),label:"2:39 PM"},Zephan:{mins:m(16,54),label:"4:54 PM"},
+  Bret:{mins:m(14,35),label:"2:35 PM"}
+};
+
+const departures = {
+  Ali:{mins:m(7,0),label:"7:00 AM"},Ethan:{mins:m(22,50),label:"10:50 PM"},Zach:null,
+  Mike:{mins:m(9,5),label:"9:05 AM"},Oliver:null,Patrick:{mins:m(11,20),label:"11:20 AM"},
+  Paul:{mins:m(19,0),label:"7:00 PM"},Rob:{mins:m(13,30),label:"1:30 PM"},
+  Wes:{mins:m(22,50),label:"10:50 PM"},Rami:null,Jay:{mins:m(18,13),label:"6:13 PM"},
+  Harmeet:{mins:m(12,25),label:"12:25 PM"},Drew:{mins:m(10,1),label:"10:01 AM"},
+  Jerry:{mins:m(15,39),label:"3:39 PM"},Zephan:{mins:m(22,50),label:"10:50 PM"},
+  Bret:{mins:m(11,20),label:"11:20 AM"}
+};
+
+const PALETTE = ["#5b9cf6","#f26c5a","#4de8a8","#f5c842","#c45ef5","#42e8e0","#f59342","#a0f542","#f5427b","#4e6cf5","#f5e042","#42f57a","#e042f5","#42c8f5","#f5a542","#8af542"];
+const COLOR = {};
+people.forEach((n,i) => COLOR[n] = PALETTE[i]);
+
+function fmtTime(mins) {
+  const h = Math.floor(mins/60)%24, mn = Math.round(mins%60);
+  const ap = h>=12?'PM':'AM', h12 = h%12===0?12:h%12;
+  return `${h12}:${String(mn).padStart(2,'0')} ${ap}`;
+}
+
+function buildTimeline(containerId, dataMap, dayLabel) {
+  const container = document.getElementById(containerId);
+  const vals = people.map(n=>dataMap[n]).filter(Boolean).map(d=>d.mins);
+  if (!vals.length) return;
+  const PAD = 40;
+  const minT = Math.min(...vals) - PAD;
+  const maxT = Math.max(...vals) + PAD;
+  const span = maxT - minT;
+  const pct = mins => ((mins-minT)/span*100).toFixed(3)+'%';
+
+  // Axis
+  const axisRow = document.createElement('div'); axisRow.className='axis-row';
+  const spacer = document.createElement('div'); spacer.className='axis-spacer';
+  axisRow.appendChild(spacer);
+  const axisTrack = document.createElement('div'); axisTrack.className='axis-track';
+  const startH = Math.ceil(minT/60), endH = Math.floor(maxT/60);
+  for (let h=startH;h<=endH;h++) {
+    const mn=h*60; if(mn<minT||mn>maxT) continue;
+    const tick=document.createElement('div'); tick.className='time-tick';
+    tick.style.left=pct(mn);
+    const hh=h%24,ap=hh>=12?'PM':'AM',h12=hh%12===0?12:hh%12;
+    tick.textContent=`${h12}${ap}`;
+    axisTrack.appendChild(tick);
+  }
+  axisRow.appendChild(axisTrack);
+  container.appendChild(axisRow);
+
+  // Person rows
+  people.forEach(name => {
+    const entry = dataMap[name];
+    const row = document.createElement('div'); row.className='person-row';
+    const nameEl = document.createElement('div'); nameEl.className='person-name';
+    nameEl.style.borderLeft=`3px solid ${COLOR[name]}`;
+    nameEl.textContent=name;
+    row.appendChild(nameEl);
+    const track = document.createElement('div'); track.className='person-track';
+    // Grid lines
+    for (let h=startH;h<=endH;h++) {
+      const mn=h*60; if(mn<minT||mn>maxT) continue;
+      const gl=document.createElement('div'); gl.className='grid-line'; gl.style.left=pct(mn);
+      track.appendChild(gl);
+    }
+    if (entry) {
+      const bar=document.createElement('div'); bar.className='event-bar';
+      bar.style.left=pct(entry.mins);
+      bar.style.background=COLOR[name];
+      bar.style.boxShadow=`0 0 7px ${COLOR[name]}99`;
+      const pip=document.createElement('div'); pip.className='event-pip';
+      pip.style.left='50%'; pip.style.background=COLOR[name];
+      pip.style.boxShadow=`0 0 6px ${COLOR[name]}`;
+      bar.appendChild(pip);
+      track.appendChild(bar);
+    }
+    row.appendChild(track);
+    container.appendChild(row);
+  });
+
+  // Scrubber
+  const scrubber=document.createElement('div'); scrubber.className='scrubber';
+  container.appendChild(scrubber);
+
+  let dragging=false;
+  const NAME_W=110;
+
+  function clientToMins(clientX) {
+    const rect=container.getBoundingClientRect();
+    const tw=rect.width-NAME_W;
+    const x=Math.max(0,Math.min(clientX-rect.left-NAME_W,tw));
+    return minT+(x/tw)*span;
+  }
+  function clientToScrubX(clientX) {
+    const rect=container.getBoundingClientRect();
+    const tw=rect.width-NAME_W;
+    const x=Math.max(0,Math.min(clientX-rect.left-NAME_W,tw));
+    return NAME_W+x;
+  }
+  function update(clientX) {
+    scrubber.style.left=clientToScrubX(clientX)+'px';
+    scrubber.style.display='block';
+    renderReadout(clientToMins(clientX),dataMap,dayLabel);
+  }
+  container.addEventListener('mousedown', e=>{dragging=true; update(e.clientX);});
+  window.addEventListener('mousemove', e=>{if(dragging) update(e.clientX);});
+  window.addEventListener('mouseup', ()=>{dragging=false;});
+  container.addEventListener('mouseleave', ()=>{
+    if(!dragging){scrubber.style.display='none'; document.getElementById('readout').style.display='none';}
+  });
+}
+
+function renderReadout(mins, dataMap, dayLabel) {
+  const WIN=35;
+  const near=people.map(n=>({name:n,entry:dataMap[n]}))
+    .filter(({entry})=>entry&&Math.abs(entry.mins-mins)<=WIN)
+    .sort((a,b)=>a.entry.mins-b.entry.mins);
+  document.getElementById('rTime').textContent=fmtTime(mins);
+  document.getElementById('rDay').textContent=dayLabel;
+  const body=document.getElementById('rBody');
+  if(!near.length) { body.innerHTML='<div class="r-empty">no flights nearby</div>'; }
+  else {
+    body.innerHTML=near.map(({name,entry})=>{
+      const diff=Math.round(entry.mins-mins);
+      const ds=diff===0?'now':diff>0?`+${diff}m`:`${diff}m`;
+      return `<div class="r-person"><div class="r-dot" style="background:${COLOR[name]}"></div><span>${name}</span><span class="r-ft">${entry.label} <span style="color:#2a3050">${ds}</span></span></div>`;
+    }).join('');
+  }
+  document.getElementById('readout').style.display='block';
+}
+
+buildTimeline('arrWrap',arrivals,'Sun Apr 26 · Arrivals');
+buildTimeline('depWrap',departures,'Wed Apr 29 · Departures');
+</script>
+</body>
+</html>
