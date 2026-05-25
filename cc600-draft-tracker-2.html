@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#08080a">
+<title>Coca-Cola 600 · Draft Pool Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #08080a;
+    --bg-elev: #14141a;
+    --bg-card: #0f0f14;
+    --border: #2a2a32;
+    --text: #fafaf7;
+    --text-dim: #a8a89e;
+    --text-mute: #6a6a62;
+    --accent: #facc15;
+    --red: #ef4444;
+    --green: #22c55e;
+    --blue: #60a5fa;
+    --gold: #fbbf24;
+    --silver: #cbd5e1;
+    --bronze: #c08458;
+  }
+  html, body { background: var(--bg); }
+  body {
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    padding-bottom: 90px;
+    line-height: 1.4;
+    overscroll-behavior-y: contain;
+  }
+  button { border: none; background: none; color: inherit; font: inherit; cursor: pointer; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+
+  /* HEADER */
+  .header { position: sticky; top: 0; z-index: 50; background: rgba(8,8,10,0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .header-inner { padding: 12px 16px 10px; background: radial-gradient(circle at 30% 20%, rgba(220,38,38,0.06) 0%, transparent 60%), radial-gradient(circle at 80% 80%, rgba(250,204,21,0.04) 0%, transparent 60%); }
+  .title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .kicker { font-size: 10px; letter-spacing: 0.22em; color: var(--text-mute); text-transform: uppercase; }
+  .title { font-size: 38px; line-height: 1; margin-top: 2px; }
+  .subtitle { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+  .flag-box { padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; background: #1e293b; color: var(--text-dim); animation: pulse 2.5s ease-in-out infinite; white-space: nowrap; }
+  .flag-box.green { background: #22c55e; color: #052e16; }
+  .flag-box.yellow { background: #facc15; color: #1a1300; }
+  .flag-box.red { background: #dc2626; color: #fafafa; }
+  .flag-box.white, .flag-box.checkered { background: #fafafa; color: #0a0a0a; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
+
+  .lap-progress { margin-top: 12px; }
+  .lap-labels { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 0.14em; color: var(--text-mute); margin-bottom: 4px; }
+  .lap-bar { height: 3px; background: #1f1f24; border-radius: 2px; overflow: hidden; }
+  .lap-fill { height: 100%; background: linear-gradient(90deg, #ef4444, #facc15 50%, #fafafa); width: 0%; transition: width 1s ease; }
+
+  .status-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 10px; letter-spacing: 0.14em; gap: 8px; }
+  .status-left { display: flex; align-items: center; gap: 8px; color: var(--text-dim); min-width: 0; flex: 1; }
+  .status-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); flex-shrink: 0; }
+  .status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.loading { background: var(--accent); animation: blink 1s ease-in-out infinite; }
+  .status-dot.error { background: var(--red); }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .proxy-tag { background: #1a1a20; color: var(--text-mute); padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; flex-shrink: 0; }
+  .proxy-tag.proxied { background: rgba(96,165,250,0.15); color: var(--blue); }
+
+  .mode-toggle { display: flex; gap: 2px; background: #1a1a20; padding: 2px; border-radius: 6px; flex-shrink: 0; }
+  .mode-btn { padding: 5px 10px; font-size: 10px; letter-spacing: 0.12em; color: var(--text-mute); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+  .mode-btn.active { background: var(--red); color: #fff; }
+
+  /* ERROR */
+  .error-banner { margin: 12px 16px 0; padding: 12px; background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 8px; }
+  .error-title { font-size: 10px; letter-spacing: 0.14em; color: #fca5a5; margin-bottom: 4px; }
+  .error-msg { font-size: 12px; color: #fecaca; line-height: 1.5; }
+
+  /* SECTION */
+  .section-label { font-size: 10px; letter-spacing: 0.22em; color: var(--text-mute); text-transform: uppercase; padding: 22px 16px 8px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* LEADERBOARD */
+  .leaderboard-list { padding: 0 16px; display: flex; flex-direction: column; gap: 6px; }
+  .lb-row { display: flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; gap: 12px; }
+  .lb-row.gold { background: linear-gradient(90deg, rgba(251,191,36,0.18), rgba(251,191,36,0.03)); border-color: rgba(251,191,36,0.45); }
+  .lb-row.silver { background: linear-gradient(90deg, rgba(203,213,225,0.1), rgba(203,213,225,0.02)); border-color: rgba(203,213,225,0.3); }
+  .lb-row.bronze { background: linear-gradient(90deg, rgba(192,132,88,0.12), rgba(192,132,88,0.02)); border-color: rgba(192,132,88,0.35); }
+  .lb-rank { font-family: 'Bebas Neue', sans-serif; font-size: 30px; line-height: 1; width: 32px; text-align: center; color: var(--text-mute); }
+  .lb-row.gold .lb-rank { color: var(--gold); text-shadow: 0 0 12px rgba(251,191,36,0.5); }
+  .lb-row.silver .lb-rank { color: var(--silver); }
+  .lb-row.bronze .lb-rank { color: var(--bronze); }
+  .lb-name { flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 24px; line-height: 1; letter-spacing: 0.03em; }
+  .lb-stats { text-align: right; }
+  .lb-total { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 18px; line-height: 1; }
+  .lb-meta { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.1em; color: var(--text-mute); text-transform: uppercase; margin-top: 3px; }
+
+  /* TEAMS */
+  .teams-list { padding: 0 16px; display: flex; flex-direction: column; gap: 14px; }
+  .team-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .team-card.gold { border-color: rgba(251,191,36,0.35); box-shadow: 0 0 24px rgba(251,191,36,0.05); }
+  .team-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px 10px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.025), transparent); }
+  .team-name { font-family: 'Bebas Neue', sans-serif; font-size: 26px; line-height: 1; letter-spacing: 0.04em; }
+  .team-rank-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; background: #1f1f24; color: var(--text-dim); padding: 5px 8px; border-radius: 4px; }
+  .team-rank-badge.gold { background: rgba(251,191,36,0.22); color: var(--gold); }
+  .team-rank-badge.silver { background: rgba(203,213,225,0.15); color: var(--silver); }
+  .team-rank-badge.bronze { background: rgba(192,132,88,0.2); color: var(--bronze); }
+
+  .team-summary { display: flex; gap: 14px; padding: 8px 14px; background: #0a0a0e; border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: var(--text-mute); text-transform: uppercase; flex-wrap: wrap; }
+  .team-summary > div { display: flex; gap: 4px; align-items: baseline; }
+  .summary-val { color: var(--text); font-weight: 700; }
+  .summary-val.green { color: var(--green); }
+  .summary-val.red { color: var(--red); }
+  .summary-val.accent { color: var(--accent); }
+
+  .drivers-grid { padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+  @media (max-width: 380px) { .drivers-grid { grid-template-columns: 1fr; } }
+
+  .driver-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 7px; background: #0a0a0e; border: 1px solid var(--border); border-left: 3px solid transparent; border-radius: 6px; transition: transform 0.1s; cursor: pointer; position: relative; }
+  .driver-card:active { transform: scale(0.98); }
+  .driver-card.drop { opacity: 0.5; }
+  .driver-card.counting { border-left-color: var(--accent); background: linear-gradient(90deg, rgba(250,204,21,0.04), transparent 30%); }
+  .driver-card.leader { border-color: rgba(250,204,21,0.5); border-left-color: var(--accent); background: linear-gradient(90deg, rgba(250,204,21,0.18), rgba(250,204,21,0.02)); }
+  .driver-card.out.counting { border-left-color: var(--red); background: linear-gradient(90deg, rgba(239,68,68,0.06), transparent 30%); }
+
+  .driver-pos { font-family: 'Bebas Neue', sans-serif; font-size: 26px; line-height: 1; min-width: 28px; text-align: center; color: var(--text); }
+  .driver-card.leader .driver-pos { color: var(--accent); text-shadow: 0 0 8px rgba(250,204,21,0.4); }
+  .driver-card .driver-pos.empty { color: var(--text-mute); font-size: 22px; }
+
+  .driver-info { flex: 1; min-width: 0; }
+  .driver-num { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 11px; }
+  .driver-num.toyota { color: var(--red); }
+  .driver-num.ford { color: var(--blue); }
+  .driver-num.chevy { color: var(--accent); }
+
+  .driver-name { font-size: 13px; line-height: 1.2; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .driver-status { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-mute); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.08em; display: flex; gap: 6px; align-items: center; }
+  .driver-status .status-pill.running { color: var(--green); }
+  .driver-status .status-pill.pit { color: var(--accent); }
+  .driver-status .status-pill.out { color: var(--red); }
+  .driver-status .drop-tag { color: var(--text-mute); opacity: 0.7; }
+  .driver-status .count-tag { color: var(--accent); font-weight: 700; }
+
+  /* FOOTER */
+  .footer { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; background: rgba(8,8,10,0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 8px; }
+  .footer-btn { flex: 1; padding: 12px 16px; border-radius: 6px; background: #1a1a20; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+  .footer-btn-primary { background: var(--red); color: #fff; }
+  .footer-btn-primary:disabled { background: #2a2a2a; color: var(--text-mute); }
+  .footer-btn.on { background: #22c55e; color: #052e16; }
+
+  /* MODAL */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: flex-end; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--bg-elev); border: 1px solid var(--border); border-top-left-radius: 14px; border-top-right-radius: 14px; width: 100%; max-width: 500px; max-height: 90vh; display: flex; flex-direction: column; }
+  .modal-head { padding: 20px 20px 12px; border-bottom: 1px solid var(--border); }
+  .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 0.04em; line-height: 1; }
+  .modal-subtitle { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+  .modal-pos-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 16px; }
+  .pos-btn { aspect-ratio: 1; background: #0a0a0e; border: 1px solid var(--border); border-radius: 5px; font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--text); }
+  .pos-btn.selected { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .modal-status { display: flex; gap: 6px; }
+  .status-btn { flex: 1; padding: 10px; border-radius: 6px; background: #0a0a0e; border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: var(--text-dim); text-transform: uppercase; }
+  .status-btn.running.selected { background: var(--green); color: #052e16; border-color: var(--green); }
+  .status-btn.pit.selected { background: var(--accent); color: #1a1300; border-color: var(--accent); }
+  .status-btn.out.selected { background: var(--red); color: #fff; border-color: var(--red); }
+  .modal-foot { padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); display: flex; gap: 8px; }
+  .modal-btn { flex: 1; padding: 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+  .modal-btn-clear { background: #1a1a20; color: var(--text-dim); flex: 0 0 auto; padding: 12px 14px; }
+  .modal-btn-cancel { background: #1a1a20; color: var(--text-dim); }
+  .modal-btn-save { background: var(--accent); color: #1a1300; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="title-row">
+      <div>
+        <div class="kicker mono">RACE 13 · DRAFT POOL · MAY 24 2026</div>
+        <h1 class="display title">Coca-Cola 600</h1>
+        <div class="subtitle mono">Charlotte Motor Speedway · 1.5mi · 400 LAPS</div>
+      </div>
+      <div class="flag-box mono" id="flag-box">PRE-RACE</div>
+    </div>
+    <div class="lap-progress">
+      <div class="lap-labels mono">
+        <span id="lap-current">LAP — / 400</span>
+        <span id="lap-remaining"></span>
+      </div>
+      <div class="lap-bar"><div class="lap-fill" id="lap-fill"></div></div>
+    </div>
+    <div class="status-row mono">
+      <div class="status-left">
+        <span class="status-dot" id="status-dot"></span>
+        <span class="status-text" id="status-text">IDLE</span>
+        <span class="proxy-tag" id="proxy-tag" hidden></span>
+      </div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-live">LIVE</button>
+        <button class="mode-btn" id="mode-manual">MANUAL</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="error-banner" id="error-banner" hidden>
+  <div class="error-title mono">FEED UNREACHABLE</div>
+  <div class="error-msg" id="error-msg"></div>
+</div>
+
+<section>
+  <div class="section-label mono">⚡ Leaderboard · top 3 count · lowest wins</div>
+  <div class="leaderboard-list" id="leaderboard-list"></div>
+</section>
+
+<section>
+  <div class="section-label mono">▾ Team rosters</div>
+  <div class="teams-list" id="teams-list"></div>
+</section>
+
+<footer class="footer">
+  <button class="footer-btn" id="auto-btn">AUTO ON</button>
+  <button class="footer-btn footer-btn-primary" id="refresh-btn">REFRESH</button>
+</footer>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Driver</div>
+      <div class="modal-subtitle" id="modal-subtitle">Set position & status</div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-pos-grid" id="modal-pos-grid"></div>
+      <div class="modal-status">
+        <button class="status-btn running" data-status="running">RUNNING</button>
+        <button class="status-btn pit" data-status="pit">IN PIT</button>
+        <button class="status-btn out" data-status="out">OUT</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="modal-btn modal-btn-clear" id="modal-clear">CLEAR</button>
+      <button class="modal-btn modal-btn-cancel" id="modal-cancel">CANCEL</button>
+      <button class="modal-btn modal-btn-save" id="modal-save">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // === DRAFT (from screenshots) ===
+  const DRAFT = {
+    'Wes':     ['45', '47', '51', '54', '38'],
+    'Patrick': ['5', '23', '24', '19', '35'],
+    'Holden':  ['67', '12', '60', '33', '66'],
+    'Bret':    ['41', '2', '16', '43', '21'],
+    'Megan':   ['11', '3', '78', '97', '34'],
+    'Brad':    ['88', '6', '20', '48', '10'],
+    'Joey':    ['22', '77', '17', '71', '4'],
+    'Lauren':  ['1', '9', '42', '7']
+  };
+
+  const DRIVERS = {
+    '1':  { name: 'Ross Chastain',        mfr: 'chevy'  },
+    '2':  { name: 'Austin Cindric',       mfr: 'ford'   },
+    '3':  { name: 'Austin Dillon',        mfr: 'chevy'  },
+    '4':  { name: 'Noah Gragson',         mfr: 'ford'   },
+    '5':  { name: 'Kyle Larson',          mfr: 'chevy'  },
+    '6':  { name: 'Brad Keselowski',      mfr: 'ford'   },
+    '7':  { name: 'Daniel Suarez',        mfr: 'chevy'  },
+    '9':  { name: 'Chase Elliott',        mfr: 'chevy'  },
+    '10': { name: 'Ty Dillon',            mfr: 'chevy'  },
+    '11': { name: 'Denny Hamlin',         mfr: 'toyota' },
+    '12': { name: 'Ryan Blaney',          mfr: 'ford'   },
+    '16': { name: 'A.J. Allmendinger',    mfr: 'chevy'  },
+    '17': { name: 'Chris Buescher',       mfr: 'ford'   },
+    '19': { name: 'Chase Briscoe',        mfr: 'toyota' },
+    '20': { name: 'Christopher Bell',     mfr: 'toyota' },
+    '21': { name: 'Josh Berry',           mfr: 'ford'   },
+    '22': { name: 'Joey Logano',          mfr: 'ford'   },
+    '23': { name: 'Bubba Wallace',        mfr: 'toyota' },
+    '24': { name: 'William Byron',        mfr: 'chevy'  },
+    '33': { name: 'Austin Hill',          mfr: 'chevy'  },
+    '34': { name: 'Todd Gilliland',       mfr: 'ford'   },
+    '35': { name: 'Riley Herbst',         mfr: 'toyota' },
+    '38': { name: 'Zane Smith',           mfr: 'ford'   },
+    '41': { name: 'Cole Custer',          mfr: 'chevy'  },
+    '42': { name: 'John Hunter Nemechek', mfr: 'toyota' },
+    '43': { name: 'Erik Jones',           mfr: 'toyota' },
+    '45': { name: 'Tyler Reddick',        mfr: 'toyota' },
+    '47': { name: 'Ricky Stenhouse Jr.',  mfr: 'chevy'  },
+    '48': { name: 'Alex Bowman',          mfr: 'chevy'  },
+    '51': { name: 'Cody Ware',            mfr: 'ford'   },
+    '54': { name: 'Ty Gibbs',             mfr: 'toyota' },
+    '60': { name: 'Ryan Preece',          mfr: 'ford'   },
+    '66': { name: 'Timmy Hill',           mfr: 'ford'   },
+    '67': { name: 'Corey Heim',           mfr: 'toyota' },
+    '71': { name: 'Michael McDowell',     mfr: 'chevy'  },
+    '77': { name: 'Carson Hocevar',       mfr: 'chevy'  },
+    '78': { name: 'Katherine Legge',      mfr: 'chevy'  },
+    '88': { name: 'Connor Zilisch',       mfr: 'chevy'  },
+    '97': { name: 'Shane van Gisbergen',  mfr: 'chevy'  }
+  };
+
+  const FLAG_MAP = {
+    1: { name: 'GREEN', cls: 'green' },
+    2: { name: 'YELLOW', cls: 'yellow' },
+    3: { name: 'RED', cls: 'red' },
+    4: { name: 'WHITE FLAG', cls: 'white' },
+    5: { name: 'CHECKERED', cls: 'checkered' },
+    8: { name: 'WARMUP', cls: '' },
+    9: { name: 'PRE-RACE', cls: '' }
+  };
+
+  const FEED_URL = 'https://cf.nascar.com/live/feeds/live-feed.json';
+  const STORAGE_KEY = 'cc600-draft-pool-2026';
+  const RANK_CLASSES = ['gold', 'silver', 'bronze'];
+  const DNF_PENALTY = 40;        // worst-case position for missing/DNF
+  const COUNT_TOP_N = 3;         // each person's best N positions count
+
+  // === CORS PROXY FALLBACK CHAIN ===
+  // Tries direct first, then public CORS proxies. The first one that works
+  // gets remembered for the rest of the session.
+  const PROXIES = [
+    { name: 'DIRECT',     wrap: u => u },
+    { name: 'corsproxy',  wrap: u => `https://corsproxy.io/?${encodeURIComponent(u)}` },
+    { name: 'allorigins', wrap: u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+    { name: 'codetabs',   wrap: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}` }
+  ];
+
+  // === STATE ===
+  const state = {
+    raceData: null,
+    manualMode: false,
+    manualData: {},
+    status: 'idle',
+    errorMsg: '',
+    lastUpdate: null,
+    autoRefresh: true,
+    editingDriver: null,
+    modalDraft: { position: null, status: 'running' },
+    proxyUsed: null,         // name of last successful proxy
+    preferredProxy: null     // index of proxy to try first next time
+  };
+  let refreshTimer = null;
+
+  // === STORAGE ===
+  const saveState = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        manualMode: state.manualMode,
+        manualData: state.manualData,
+        autoRefresh: state.autoRefresh,
+        preferredProxy: state.preferredProxy
+      }));
+    } catch {}
+  };
+  const loadState = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s.manualMode != null) state.manualMode = s.manualMode;
+      if (s.manualData) state.manualData = s.manualData;
+      if (s.autoRefresh != null) state.autoRefresh = s.autoRefresh;
+      if (s.preferredProxy != null) state.preferredProxy = s.preferredProxy;
+    } catch {}
+  };
+
+  // === DATA HELPERS ===
+  const getPositionData = (carNo) => {
+    if (state.manualMode) {
+      const m = state.manualData[carNo];
+      if (m && m.position) return { position: m.position, status: m.status || 'running' };
+      return { position: null, status: null };
+    }
+    const v = state.raceData?.vehicles?.find(x => String(x.vehicle_number) === carNo);
+    if (!v) return { position: null, status: null };
+
+    // status can be a number (NASCAR code) or a string depending on the endpoint.
+    // Defensive: handle both, default to running if we can't classify.
+    let status = 'running';
+    const s = v.status;
+    if (typeof s === 'string') {
+      const l = s.toLowerCase();
+      if (/retired|out|dnf|off track/.test(l)) status = 'out';
+      else if (/pit/.test(l)) status = 'pit';
+    } else if (typeof s === 'number') {
+      // Conservative numeric mapping. NASCAR's canonical "Running" is 1.
+      // Higher codes generally indicate off-track / non-competitive.
+      if (s >= 3) status = 'out';
+    }
+
+    const pos = v.running_position;
+    const position = typeof pos === 'number' ? pos : (parseInt(pos, 10) || null);
+    return { position, status };
+  };
+
+  const scoreFriend = (friend) => {
+    const carNos = DRAFT[friend];
+    const drivers = carNos.map(no => ({ carNo: no, ...getPositionData(no) }));
+    // Effective position for scoring (DNF/missing = penalty)
+    const withScore = drivers.map(d => ({ d, scorePos: d.position || DNF_PENALTY }));
+    // Sort ascending (best first), take top N
+    const sorted = [...withScore].sort((a, b) => a.scorePos - b.scorePos);
+    const counting = sorted.slice(0, COUNT_TOP_N);
+    const countingSet = new Set(counting.map(x => x.d.carNo));
+    drivers.forEach(d => { d.counting = countingSet.has(d.carNo); });
+    const total = counting.reduce((s, x) => s + x.scorePos, 0);
+    const valid = drivers.filter(d => d.position != null).map(d => d.position);
+    const best = valid.length > 0 ? Math.min(...valid) : null;
+    const running = drivers.filter(d => d.status === 'running').length;
+    const out = drivers.filter(d => d.status === 'out').length;
+    const top5 = drivers.filter(d => d.position != null && d.position <= 5).length;
+    const top10 = drivers.filter(d => d.position != null && d.position <= 10).length;
+    const hasData = valid.length > 0;
+    return { friend, drivers, total, best, running, out, top5, top10, hasData };
+  };
+
+  const rankedFriends = () => Object.keys(DRAFT).map(scoreFriend).sort((a, b) => {
+    if (a.hasData !== b.hasData) return a.hasData ? -1 : 1;
+    if (a.total !== b.total) return a.total - b.total;
+    if ((a.best ?? 999) !== (b.best ?? 999)) return (a.best ?? 999) - (b.best ?? 999);
+    return b.top5 - a.top5;
+  });
+
+  // === FETCHING with proxy fallback ===
+  const fetchLive = async () => {
+    if (state.manualMode) return;
+    state.status = 'loading';
+    render();
+
+    // Reorder proxies to try the last successful one first
+    const order = [...Array(PROXIES.length).keys()];
+    if (state.preferredProxy != null) {
+      const i = order.indexOf(state.preferredProxy);
+      if (i >= 0) {
+        order.splice(i, 1);
+        order.unshift(state.preferredProxy);
+      }
+    }
+
+    const attempts = [];
+    for (const idx of order) {
+      const proxy = PROXIES[idx];
+      let data = null;
+      try {
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 8000);
+        const resp = await fetch(proxy.wrap(FEED_URL), { cache: 'no-store', signal: ctrl.signal });
+        clearTimeout(timeoutId);
+        if (!resp.ok) {
+          attempts.push(`${proxy.name}: HTTP ${resp.status}`);
+          continue;
+        }
+        data = await resp.json();
+        // Sanity check: must look like a NASCAR feed
+        if (!data || (!Array.isArray(data.vehicles) && data.flag_state == null && !data.run_name)) {
+          attempts.push(`${proxy.name}: unexpected payload`);
+          continue;
+        }
+      } catch (e) {
+        attempts.push(`${proxy.name}: ${String(e?.name === 'AbortError' ? 'timeout' : e?.message || e)}`);
+        continue;
+      }
+
+      // Fetch succeeded — commit data. Render errors are bugs, not fetch failures,
+      // and must NOT trigger proxy fallback.
+      state.raceData = data;
+      state.status = 'ok';
+      state.lastUpdate = new Date();
+      state.errorMsg = '';
+      state.proxyUsed = proxy.name;
+      state.preferredProxy = idx;
+      saveState();
+      try { render(); } catch (e) { console.error('Render error after successful fetch:', e); }
+      return;
+    }
+
+    state.status = 'error';
+    state.proxyUsed = null;
+    state.errorMsg = `All sources failed. Tried: ${attempts.join(' · ')}. Tap MANUAL to enter positions yourself.`;
+    render();
+  };
+
+  const startAutoRefresh = () => {
+    stopAutoRefresh();
+    if (!state.autoRefresh || state.manualMode) return;
+    fetchLive();
+    refreshTimer = setInterval(fetchLive, 20000);
+  };
+  const stopAutoRefresh = () => { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; } };
+
+  // === FORMAT ===
+  const fmtTimeAgo = (d) => {
+    if (!d) return '—';
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    return `${Math.floor(s / 60)}m ${s % 60}s ago`;
+  };
+
+  // === RENDER ===
+  const render = () => {
+    // Flag
+    const flagBox = document.getElementById('flag-box');
+    const flag = state.raceData?.flag_state != null ? FLAG_MAP[state.raceData.flag_state] : FLAG_MAP[9];
+    flagBox.className = 'flag-box mono ' + (flag?.cls || '');
+    flagBox.textContent = flag?.name || 'PRE-RACE';
+
+    // Lap progress
+    const lap = state.raceData?.lap_number;
+    const totalLaps = state.raceData?.laps_in_race || 400;
+    document.getElementById('lap-current').textContent = `LAP ${lap ?? '—'} / ${totalLaps}`;
+    document.getElementById('lap-remaining').textContent = lap != null ? `${Math.max(0, totalLaps - lap)} TO GO` : '';
+    document.getElementById('lap-fill').style.width = `${lap && totalLaps ? (lap / totalLaps) * 100 : 0}%`;
+
+    // Status
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const proxyTag = document.getElementById('proxy-tag');
+    statusDot.className = 'status-dot';
+    proxyTag.hidden = true;
+    if (state.manualMode) {
+      statusDot.classList.add('ok');
+      statusText.textContent = 'MANUAL · TAP DRIVER TO EDIT';
+    } else if (state.status === 'ok') {
+      statusDot.classList.add('ok');
+      statusText.textContent = `LIVE · ${fmtTimeAgo(state.lastUpdate).toUpperCase()}`;
+      if (state.proxyUsed) {
+        proxyTag.hidden = false;
+        proxyTag.textContent = state.proxyUsed;
+        proxyTag.classList.toggle('proxied', state.proxyUsed !== 'DIRECT');
+      }
+    } else if (state.status === 'loading') {
+      statusDot.classList.add('loading');
+      statusText.textContent = 'CONNECTING…';
+    } else if (state.status === 'error') {
+      statusDot.classList.add('error');
+      statusText.textContent = 'ALL SOURCES FAILED';
+    } else {
+      statusText.textContent = 'IDLE';
+    }
+
+    document.getElementById('mode-live').classList.toggle('active', !state.manualMode);
+    document.getElementById('mode-manual').classList.toggle('active', state.manualMode);
+
+    const banner = document.getElementById('error-banner');
+    if (!state.manualMode && state.status === 'error' && state.errorMsg) {
+      banner.hidden = false;
+      document.getElementById('error-msg').textContent = state.errorMsg;
+    } else {
+      banner.hidden = true;
+    }
+
+    const ranked = rankedFriends();
+    renderLeaderboard(ranked);
+    renderTeams(ranked);
+
+    const autoBtn = document.getElementById('auto-btn');
+    autoBtn.className = 'footer-btn' + (state.autoRefresh && !state.manualMode ? ' on' : '');
+    autoBtn.textContent = state.manualMode ? 'AUTO N/A' : (state.autoRefresh ? 'AUTO ON' : 'AUTO OFF');
+
+    const refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.disabled = state.status === 'loading' || state.manualMode;
+    refreshBtn.textContent = state.status === 'loading' ? 'REFRESHING…' : (state.manualMode ? 'TAP DRIVER →' : 'REFRESH');
+  };
+
+  const renderLeaderboard = (ranked) => {
+    const container = document.getElementById('leaderboard-list');
+    container.innerHTML = '';
+    ranked.forEach((team, idx) => {
+      const row = document.createElement('div');
+      const rankClass = (team.hasData && idx < 3) ? RANK_CLASSES[idx] : '';
+      row.className = 'lb-row' + (rankClass ? ' ' + rankClass : '');
+      row.innerHTML = `
+        <div class="lb-rank">${idx + 1}</div>
+        <div class="lb-name">${team.friend}</div>
+        <div class="lb-stats">
+          <div class="lb-total">${team.hasData ? team.total : '—'}</div>
+          <div class="lb-meta">${team.top5} T5 · ${team.top10} T10 · ${team.running}/${team.drivers.length} RUN</div>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  };
+
+  const renderTeams = (ranked) => {
+    const container = document.getElementById('teams-list');
+    container.innerHTML = '';
+    ranked.forEach((team, idx) => {
+      const card = document.createElement('div');
+      const rankClass = (team.hasData && idx < 3) ? RANK_CLASSES[idx] : '';
+      card.className = 'team-card' + (rankClass === 'gold' ? ' gold' : '');
+
+      let bestText = '—';
+      if (team.best != null) {
+        const bestDriver = team.drivers.find(d => d.position === team.best);
+        if (bestDriver) {
+          const di = DRIVERS[bestDriver.carNo];
+          bestText = `P${team.best} · ${di?.name?.split(' ').slice(-1)[0] || `#${bestDriver.carNo}`}`;
+        }
+      }
+
+      const driverCards = team.drivers.map(d => {
+        const info = DRIVERS[d.carNo] || { name: `Car #${d.carNo}`, mfr: '' };
+        const isLeader = d.position === 1;
+        const isOut = d.status === 'out';
+        const isCounting = d.counting;
+        const statusLabel = d.status === 'running' ? 'RUNNING'
+                          : d.status === 'pit' ? 'IN PIT'
+                          : d.status === 'out' ? 'OUT'
+                          : 'NO DATA';
+        const classes = [
+          'driver-card',
+          isLeader ? 'leader' : '',
+          isOut ? 'out' : '',
+          isCounting ? 'counting' : 'drop',
+          state.manualMode ? 'editable' : ''
+        ].filter(Boolean).join(' ');
+        return `
+          <div class="${classes}" data-car="${d.carNo}">
+            <div class="driver-pos ${d.position == null ? 'empty' : ''}">${d.position ?? '—'}</div>
+            <div class="driver-info">
+              <span class="driver-num ${info.mfr}">#${d.carNo}</span>
+              <div class="driver-name">${info.name}</div>
+              <div class="driver-status">
+                <span class="status-pill ${d.status || ''}">${statusLabel}</span>
+                <span class="${isCounting ? 'count-tag' : 'drop-tag'}">${isCounting ? 'SCORING' : 'DROP'}</span>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Build top-3 indicator for summary line
+      const countingPositions = team.drivers
+        .filter(d => d.counting)
+        .map(d => d.position != null ? d.position : DNF_PENALTY)
+        .sort((a, b) => a - b);
+
+      card.innerHTML = `
+        <div class="team-header">
+          <div class="team-name">${team.friend}</div>
+          <div class="team-rank-badge ${rankClass}">P${idx + 1} · ${team.hasData ? team.total + ' PTS' : '—'}</div>
+        </div>
+        <div class="team-summary">
+          <div>TOP 3 <span class="summary-val accent">${team.hasData ? countingPositions.map(p => p >= DNF_PENALTY ? '—' : p).join('+') : '—'}</span></div>
+          <div>BEST <span class="summary-val">${bestText}</span></div>
+          <div>RUN <span class="summary-val green">${team.running}</span></div>
+          ${team.out > 0 ? `<div>OUT <span class="summary-val red">${team.out}</span></div>` : ''}
+        </div>
+        <div class="drivers-grid">${driverCards}</div>
+      `;
+      container.appendChild(card);
+    });
+
+    container.querySelectorAll('.driver-card').forEach(el => {
+      el.addEventListener('click', () => {
+        if (!state.manualMode) {
+          state.manualMode = true;
+          stopAutoRefresh();
+          saveState();
+        }
+        openModal(el.dataset.car);
+      });
+    });
+  };
+
+  // === MODAL ===
+  const openModal = (carNo) => {
+    state.editingDriver = carNo;
+    const existing = state.manualData[carNo] || {};
+    state.modalDraft = {
+      position: existing.position || null,
+      status: existing.status || 'running'
+    };
+    const info = DRIVERS[carNo] || { name: `Car #${carNo}` };
+    document.getElementById('modal-title').textContent = info.name;
+    document.getElementById('modal-subtitle').textContent = `#${carNo} · Tap position then status`;
+
+    const grid = document.getElementById('modal-pos-grid');
+    grid.innerHTML = '';
+    for (let i = 1; i <= 40; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'pos-btn' + (state.modalDraft.position === i ? ' selected' : '');
+      btn.textContent = i;
+      btn.addEventListener('click', () => {
+        state.modalDraft.position = i;
+        grid.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+      grid.appendChild(btn);
+    }
+
+    document.querySelectorAll('.status-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.status === state.modalDraft.status);
+    });
+
+    document.getElementById('modal-backdrop').classList.add('open');
+  };
+
+  const closeModal = () => {
+    document.getElementById('modal-backdrop').classList.remove('open');
+    state.editingDriver = null;
+  };
+
+  const saveModal = () => {
+    if (!state.editingDriver) return closeModal();
+    if (state.modalDraft.position) {
+      state.manualData[state.editingDriver] = {
+        position: state.modalDraft.position,
+        status: state.modalDraft.status
+      };
+    } else {
+      delete state.manualData[state.editingDriver];
+    }
+    saveState();
+    closeModal();
+    render();
+  };
+
+  const clearModal = () => {
+    if (!state.editingDriver) return closeModal();
+    delete state.manualData[state.editingDriver];
+    saveState();
+    closeModal();
+    render();
+  };
+
+  // === EVENTS ===
+  document.getElementById('mode-live').addEventListener('click', () => {
+    state.manualMode = false;
+    saveState();
+    startAutoRefresh();
+    render();
+  });
+  document.getElementById('mode-manual').addEventListener('click', () => {
+    state.manualMode = true;
+    stopAutoRefresh();
+    saveState();
+    render();
+  });
+  document.getElementById('auto-btn').addEventListener('click', () => {
+    if (state.manualMode) return;
+    state.autoRefresh = !state.autoRefresh;
+    saveState();
+    if (state.autoRefresh) startAutoRefresh(); else stopAutoRefresh();
+    render();
+  });
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    if (!state.manualMode) fetchLive();
+  });
+
+  document.getElementById('modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('modal-clear').addEventListener('click', clearModal);
+  document.getElementById('modal-save').addEventListener('click', saveModal);
+  document.getElementById('modal-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'modal-backdrop') closeModal();
+  });
+  document.querySelectorAll('.status-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      state.modalDraft.status = b.dataset.status;
+      document.querySelectorAll('.status-btn').forEach(x => x.classList.remove('selected'));
+      b.classList.add('selected');
+    });
+  });
+
+  // Tick relative time
+  setInterval(() => {
+    if (state.status === 'ok' && state.lastUpdate && !state.manualMode) {
+      document.getElementById('status-text').textContent = `LIVE · ${fmtTimeAgo(state.lastUpdate).toUpperCase()}`;
+    }
+  }, 1000);
+
+  // === INIT ===
+  loadState();
+  render();
+  if (!state.manualMode) startAutoRefresh();
+})();
+</script>
+</body>
+</html>
