@@ -58,6 +58,8 @@
   .lap-labels { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 0.14em; color: var(--text-mute); margin-bottom: 4px; }
   .lap-bar { height: 3px; background: #1f1f24; border-radius: 2px; overflow: hidden; }
   .lap-fill { height: 100%; background: linear-gradient(90deg, #ef4444, #facc15 50%, #fafafa); width: 0%; transition: width 1s ease; }
+  @keyframes lapFlash { 0% { color: var(--accent); text-shadow: 0 0 8px var(--accent); } 100% { color: var(--text-mute); text-shadow: none; } }
+  .lap-flash { animation: lapFlash 1.2s ease-out; }
 
   .status-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 10px; letter-spacing: 0.14em; gap: 8px; }
   .status-left { display: flex; align-items: center; gap: 8px; color: var(--text-dim); min-width: 0; flex: 1; }
@@ -444,13 +446,16 @@
     }
 
     const attempts = [];
+    // Cache-bust: corsproxy.io and CloudFront both cache by full URL, so a
+    // unique query param on every fetch forces a fresh response.
+    const bustedUrl = `${FEED_URL}?_=${Date.now()}`;
     for (const idx of order) {
       const proxy = PROXIES[idx];
       let data = null;
       try {
         const ctrl = new AbortController();
         const timeoutId = setTimeout(() => ctrl.abort(), 8000);
-        const resp = await fetch(proxy.wrap(FEED_URL), { cache: 'no-store', signal: ctrl.signal });
+        const resp = await fetch(proxy.wrap(bustedUrl), { cache: 'no-store', signal: ctrl.signal });
         clearTimeout(timeoutId);
         if (!resp.ok) {
           attempts.push(`${proxy.name}: HTTP ${resp.status}`);
@@ -514,7 +519,15 @@
     // Lap progress
     const lap = state.raceData?.lap_number;
     const totalLaps = state.raceData?.laps_in_race || 400;
-    document.getElementById('lap-current').textContent = `LAP ${lap ?? '—'} / ${totalLaps}`;
+    const lapEl = document.getElementById('lap-current');
+    const prevLapText = lapEl.textContent;
+    const newLapText = `LAP ${lap ?? '—'} / ${totalLaps}`;
+    lapEl.textContent = newLapText;
+    if (prevLapText !== newLapText && prevLapText !== '' && lap != null) {
+      lapEl.classList.remove('lap-flash');
+      void lapEl.offsetWidth; // restart animation
+      lapEl.classList.add('lap-flash');
+    }
     document.getElementById('lap-remaining').textContent = lap != null ? `${Math.max(0, totalLaps - lap)} TO GO` : '';
     document.getElementById('lap-fill').style.width = `${lap && totalLaps ? (lap / totalLaps) * 100 : 0}%`;
 
