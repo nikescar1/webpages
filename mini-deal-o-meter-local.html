@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MINI Cooper S · Deal-O-Meter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0f11; --panel:#17191c; --panel2:#1f2226; --line:#2c3036;
+    --ink:#f3efe8; --muted:#9aa0a6; --muted2:#6b7178;
+    --green:#19a06e; --chili:#d6231f; --chili-dim:#a51b18;
+    --t-vgood:#1fb86b; --t-good:#8fd14f; --t-fair:#f2c14e; --t-bad:#ef8a3c; --t-vbad:#e23b2e;
+    --font-display:'Bricolage Grotesque',ui-sans-serif,system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--font-display);-webkit-font-smoothing:antialiased}
+  body{
+    line-height:1.45;padding:0 0 80px;
+    background-image:radial-gradient(1200px 600px at 80% -10%, rgba(25,160,110,.10), transparent 60%),
+                     radial-gradient(900px 500px at -10% 10%, rgba(214,35,31,.08), transparent 55%);
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+  /* ---- header ---- */
+  header{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#121417,#0e0f11)}
+  .checker{height:8px;width:100%;
+    background-image:linear-gradient(45deg,#000 25%,transparent 25%),linear-gradient(-45deg,#000 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#000 75%),linear-gradient(-45deg,transparent 75%,#000 75%);
+    background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#e9e6df;opacity:.85}
+  .head-inner{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;justify-content:space-between;padding:26px 0 22px}
+  .badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--chili);box-shadow:0 0 10px var(--chili)}
+  h1{font-size:clamp(28px,5vw,46px);font-weight:800;letter-spacing:-.02em;line-height:1;margin-top:12px}
+  h1 .accent{color:var(--chili)}
+  .sub{color:var(--muted);font-size:14px;margin-top:8px;max-width:46ch}
+  .openbtn{font-family:var(--font-mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+    background:var(--chili);color:#fff;border:none;border-radius:10px;padding:12px 16px;cursor:pointer;
+    text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:.15s;white-space:nowrap}
+  .openbtn:hover{background:var(--chili-dim);transform:translateY(-1px)}
+
+  /* ---- filter chips ---- */
+  .filters{display:flex;flex-wrap:wrap;gap:8px;padding:16px 0 4px}
+  .chip{font-family:var(--font-mono);font-size:11px;color:var(--ink);background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+  .chip b{color:var(--green)}
+
+  section{margin-top:28px}
+  .sec-title{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:12px;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+  .sec-title .num{color:var(--chili);font-weight:800}
+  .sec-title::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+  .grid{display:grid;gap:16px}
+  @media(min-width:760px){.cols2{grid-template-columns:1fr 1fr}.cols-evlr{grid-template-columns:0.9fr 1.1fr}}
+
+  textarea{width:100%;min-height:120px;resize:vertical;background:var(--bg);color:var(--ink);
+    border:1px solid var(--line);border-radius:12px;padding:14px;font-family:var(--font-mono);font-size:13px;line-height:1.5}
+  textarea::placeholder{color:var(--muted2)}
+  .row-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  button.act{font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
+    border-radius:10px;padding:11px 15px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);transition:.15s}
+  button.act:hover{border-color:var(--green);color:#fff}
+  button.act.primary{background:var(--green);border-color:var(--green);color:#06170f;font-weight:600}
+  button.act.primary:hover{filter:brightness(1.08)}
+  button.act.ghost{background:transparent}
+
+  /* ---- table ---- */
+  .tablewrap{max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:8px}
+  table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:13px}
+  th{position:sticky;top:0;background:var(--panel2);color:var(--muted);text-align:left;font-weight:600;
+    font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th.sortable{cursor:pointer;user-select:none;white-space:nowrap;transition:.15s;color:var(--muted)}
+  th.sortable:hover{color:var(--ink);background:#272b31}
+  th.sortable .sort-ind{display:inline-block;min-width:14px;margin-left:6px;color:var(--muted2)}
+  th.sortable.active{color:var(--green)}
+  th.sortable.active .sort-ind{color:var(--green)}
+  td{padding:6px 10px;border-bottom:1px solid #212529}
+  tr:last-child td{border-bottom:none}
+  td input{width:100%;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--ink);
+    font-family:var(--font-mono);font-size:13px;padding:6px 8px}
+  td input:focus{outline:none;border-color:var(--green);background:var(--bg)}
+  td.lab input{color:var(--muted)}
+  .del{cursor:pointer;color:var(--muted2);border:none;background:none;font-size:16px;padding:0 6px}
+  .del:hover{color:var(--chili)}
+  .demo-flag{font-family:var(--font-mono);font-size:11px;color:var(--t-fair);background:rgba(242,193,78,.10);
+    border:1px solid rgba(242,193,78,.3);border-radius:8px;padding:8px 12px;margin-top:10px;display:none}
+  .demo-flag.show{display:block}
+
+  /* ---- stat cards ---- */
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:4px}
+  @media(min-width:520px){.stats{grid-template-columns:repeat(3,1fr)}}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
+  .stat .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .stat .v{font-family:var(--font-mono);font-size:22px;font-weight:800;margin-top:5px;letter-spacing:-.01em}
+  .stat .v small{font-size:12px;color:var(--muted);font-weight:400}
+
+  /* ---- evaluator ---- */
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .field .hint{font-size:11px;color:var(--muted2);font-family:var(--font-mono);margin-top:5px;text-transform:none;letter-spacing:0}
+  .ipt{display:flex;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .ipt span{font-family:var(--font-mono);color:var(--muted);padding:0 4px 0 14px;font-size:16px}
+  .ipt input{flex:1;background:none;border:none;color:var(--ink);font-family:var(--font-mono);
+    font-size:18px;font-weight:600;padding:13px 14px 13px 6px}
+  .ipt input:focus{outline:none}
+  .ipt.opt{opacity:1}
+
+  /* gauge */
+  .gauge-card{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  svg.gauge{width:100%;max-width:340px;height:auto;display:block}
+  .needle{transition:transform .6s cubic-bezier(.34,1.4,.5,1)}
+  .verdict{font-size:clamp(22px,4vw,30px);font-weight:800;letter-spacing:-.01em;margin-top:6px;line-height:1.05}
+  .verdict-sub{font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:8px}
+  .verdict-sub b{color:var(--ink)}
+
+  /* bands table */
+  .bands{margin-top:6px}
+  .band{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;margin-bottom:7px;
+    background:var(--panel2);border:1px solid var(--line)}
+  .band .sw{width:12px;height:36px;border-radius:4px;flex-shrink:0}
+  .band .nm{font-weight:600;font-size:14px;flex:1}
+  .band .nm small{display:block;font-family:var(--font-mono);font-size:11px;color:var(--muted);font-weight:400}
+  .band .pr{font-family:var(--font-mono);font-weight:800;font-size:15px;text-align:right;white-space:nowrap}
+  .band.active{border-color:currentColor;box-shadow:0 0 0 1px currentColor inset}
+
+  /* chart */
+  #chart{width:100%;height:auto;display:block;border-radius:12px;background:var(--bg);border:1px solid var(--line)}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .legend .dotmark{width:9px;height:9px;border-radius:50%}
+
+  .notes{font-size:13px;color:var(--muted);line-height:1.65}
+  .notes h4{color:var(--ink);font-size:13px;font-family:var(--font-mono);letter-spacing:.06em;text-transform:uppercase;margin:16px 0 6px}
+  .notes ul{margin:0 0 0 18px}
+  .notes li{margin:5px 0}
+  .notes code{font-family:var(--font-mono);background:var(--panel2);padding:1px 6px;border-radius:5px;color:var(--green);font-size:12px}
+  .model-flag{font-family:var(--font-mono);font-size:11px;display:inline-block;border-radius:8px;padding:4px 9px;margin-top:2px}
+  .empty{color:var(--muted2);font-family:var(--font-mono);font-size:13px;text-align:center;padding:30px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="checker"></div>
+  <div class="wrap">
+    <div class="head-inner">
+      <div>
+        <span class="badge"><span class="dot"></span> Used MINI · Pricing Intelligence</span>
+        <h1>COOPER&nbsp;S <span class="accent">DEAL-O-METER</span></h1>
+        <p class="sub">Paste your filtered MINI search results, then drop in a mileage to see whether an asking price is a steal or a swindle — judged against the real market, not a flat average.</p>
+      </div>
+      <a class="openbtn" id="openSearch" target="_blank" rel="noopener">↗ Open my MINI search</a>
+    </div>
+    <div class="filters" id="filters"></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- 1. DATA -->
+  <section>
+    <div class="sec-title"><span class="num">01</span> Load the listings</div>
+    <div class="panel">
+      <div class="demo-flag show" id="sourceStatus">No scraped listings embedded yet. Run <code>update-mini-deal-o-meter-manual.bat</code> for a manual nationwide scrape or <code>update-mini-deal-o-meter.bat</code> for the automatic scrape.</div>
+      <div class="tablewrap">
+        <table id="tbl">
+          <thead><tr>
+            <th class="sortable" data-sort="year">Year <span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="trim">Trim <span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="miles">Mileage <span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="price">Price <span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="cpo">CPO <span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="dealer">Dealer <span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="options">Options / packages <span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="links">Links <span class="sort-ind"></span></th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. STATS -->
+  <section>
+    <div class="sec-title"><span class="num">02</span> The market, by the numbers</div>
+    <div class="panel">
+      <div class="stats" id="stats"></div>
+      <div style="margin-top:14px"><span class="model-flag" id="modelFlag"></span></div>
+    </div>
+  </section>
+
+  <!-- 3. EVALUATE -->
+  <section>
+    <div class="sec-title"><span class="num">03</span> Rate a deal</div>
+    <div class="grid cols-evlr">
+      <div class="panel">
+        <div class="field">
+          <label for="mi">Mileage of the car you're eyeing</label>
+          <div class="ipt"><input id="mi" type="text" inputmode="numeric" placeholder="15000"><span style="padding:0 14px 0 6px;font-size:13px">mi</span></div>
+        </div>
+        <div class="field">
+          <label for="ask">Asking price <span style="color:var(--muted2)">(optional — for a verdict)</span></label>
+          <div class="ipt opt"><span>$</span><input id="ask" type="text" inputmode="numeric" placeholder="29990"></div>
+          <div class="hint">Leave blank to just see the price bands for that mileage.</div>
+        </div>
+        <div class="field">
+          <label for="cpo">Certified Pre-Owned credit <span style="color:var(--muted2)">(optional)</span></label>
+          <div class="ipt opt"><span>$</span><input id="cpo" type="text" inputmode="numeric" placeholder="0"></div>
+          <div class="hint">If the car is MINI CPO, the extra warranty has real value. Enter what it's worth to you (≈$1,000–1,800) and it's subtracted from the asking price before judging.</div>
+        </div>
+        <div class="bands" id="bands"></div>
+      </div>
+
+      <div class="panel gauge-card" id="gaugeCard">
+        <svg class="gauge" viewBox="0 0 300 190" id="gaugeSvg" aria-hidden="true"></svg>
+        <div class="verdict" id="verdict">Enter a mileage</div>
+        <div class="verdict-sub" id="verdictSub">Bands update live as you type.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. CHART -->
+  <section>
+    <div class="sec-title"><span class="num">04</span> Price vs. mileage</div>
+    <div class="panel">
+      <canvas id="chart" width="1040" height="440"></canvas>
+      <div class="legend">
+        <span><i class="dotmark" style="background:#7fb6ff"></i> Listing</span>
+        <span><i style="background:var(--green)"></i> Fair-price line (regression)</span>
+        <span><i style="background:var(--t-fair);height:10px;opacity:.25"></i> Fair band</span>
+        <span><i class="dotmark" style="background:var(--chili)"></i> Your target car</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. NOTES -->
+  <section>
+    <div class="sec-title"><span class="num">05</span> How to read it &amp; buying notes</div>
+    <div class="panel notes" id="notes"></div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ---------------- the filtered search URL ---------------- */
+const SEARCH_URL = "https://www.miniusa.com/used-inventory.html#/results?minModelYear=2025&Model=F56%7CF66&Package=S0ZHI%7CS07ED&ExteriorColor=P0C4R%7CP0C6A&Engine=21MB%7C25MB%7C17MB%7C24MB%7C20MB%7C23MB%7C19MB%7C22MB%7C26MB&Mileage=30000";
+document.getElementById("openSearch").href = SEARCH_URL;
+
+/* ---------------- generated by update-mini-deal-o-meter.mjs ---------------- */
+const GENERATED_AT = "5/31/2026, 23:47:16";
+const GENERATED_SOURCE_URL = "https://www.miniusa.com/used-inventory.html#/results?minModelYear=2025&Model=F56%7CF66&Package=S0ZHI%7CS07ED&ExteriorColor=P0C4R%7CP0C6A&Engine=21MB%7C25MB%7C17MB%7C24MB%7C20MB%7C23MB%7C19MB%7C22MB%7C26MB&Mileage=30000&preowned=cpo";
+const GENERATED_LISTINGS = [
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 2538,
+    "price": 35002,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD01T2X76338",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD01T2X76338",
+    "dealerUrl": "https://www.miniofthewoodlands.com/catcher.esl?vehicleId=1407b517ac18261dfd33786cc20e8025"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 2704,
+    "price": 31149,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD00S2W65780",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD00S2W65780",
+    "dealerUrl": "https://www.miniofstlouis.com/catcher.esl?vehicleId=de36c7bdac1819132dceebc75415932e"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 2732,
+    "price": 31484,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD05S2W94711",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD05S2W94711",
+    "dealerUrl": "https://www.miniofomaha.com/inventory/certified-used-2025-mini-hardtop-2-door-cooper-s-front-wheel-drive-hatchback-wmw23gd05s2w94711/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 3083,
+    "price": 36780,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD08S2X07791",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD08S2X07791",
+    "dealerUrl": "https://www.minioffortworth.com/inventory/certified-used-2025-mini-hardtop-2-door-cooper-s-front-wheel-drive-hatchback-wmw23gd08s2x07791/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 3110,
+    "price": 30348,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD04S2X21297",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD04S2X21297",
+    "dealerUrl": "https://www.motorwerksmini.com/inventory/certified-used-2025-mini-cooper-s-fwd-2d-hatchback-wmw23gd04s2x21297/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 3478,
+    "price": 33035,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD01S2X08278",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD01S2X08278",
+    "dealerUrl": "https://www.miniofaustin.com/inventory/certified-used-2025-mini-cooper-s-iconic-fwd-2d-hatchback-wmw23gd01s2x08278/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 4087,
+    "price": 32975,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD0XS2W72414",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD0XS2W72414",
+    "dealerUrl": "https://www.miniofaustin.com/inventory/certified-used-2025-mini-cooper-s-iconic-fwd-2d-hatchback-wmw23gd0xs2w72414/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 4486,
+    "price": 40066,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD07S2W51598",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD07S2W51598",
+    "dealerUrl": "https://www.sandiamini.com/inventory/new-2025-mini-hardtop-2-door-cooper-s-fwd-2dr-car-wmw23gd07s2w51598/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 4799,
+    "price": 33993,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD00T2X72197",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD00T2X72197",
+    "dealerUrl": "https://www.niellomini.com/catcher.esl?vehicleId=e60d79d0ac185e3b261a3038649c4d07"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 5077,
+    "price": 29900,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD09S2W14830",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD09S2W14830",
+    "dealerUrl": ""
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 5776,
+    "price": 31701,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD0XS2W93280",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD0XS2W93280",
+    "dealerUrl": "https://www.checkeredflagmini.com/inventory/certified-used-2025-mini-hardtop-2-door-iconic-fwd-2d-hatchback-wmw23gd0xs2w93280/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 6322,
+    "price": 28164,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD00S2W26204",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD00S2W26204",
+    "dealerUrl": ""
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 6748,
+    "price": 28937,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD07S2X16305",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD07S2X16305",
+    "dealerUrl": "https://www.mallofgamini.com/inventory/certified-used-2025-mini-hardtop-2-door-cooper-s-fwd-hatchback-wmw23gd07s2x16305/"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 8528,
+    "price": 34687,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD05S2W38963",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD05S2W38963",
+    "dealerUrl": "https://www.miniofpittsburgh.com/catcher.esl?vehicleId=659c2553ac185cbe9419aaa56718944e"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 10732,
+    "price": 31899,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD01S2W23067",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD01S2W23067",
+    "dealerUrl": "https://www.miniofmontgomerycounty.com/used-Gaithersburg-2025-MINI-Iconic-Cooper+S-WMW23GD01S2W23067"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 11226,
+    "price": 31937,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD07S2W22621",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD07S2W22621",
+    "dealerUrl": "https://www.miniofpittsburgh.com/catcher.esl?vehicleId=3ad2e7c8ac1802b9bbeeeca4f73a34d4"
+  },
+  {
+    "year": null,
+    "trim": "MINI Cooper S",
+    "miles": 15215,
+    "price": 31535,
+    "cpo": false,
+    "dealer": "",
+    "options": [
+      "Iconic",
+      "Sport",
+      "Comfort"
+    ],
+    "label": "MINI Cooper S",
+    "vin": "WMW23GD01S2W59616",
+    "url": "https://www.miniusa.com/used-inventory.html#/detail/WMW23GD01S2W59616",
+    "dealerUrl": "https://schompmini.com/inventory/Used-2025-MINI-Hardtop_2_Door-Cooper_S-WMW23GD01S2W59616"
+  }
+];
+
+
+/* decode the filters into friendly chips */
+const FILTERS = [
+  ["Years", "2025 +"],
+  ["Body", "2-door hardtop (F56 / F66)"],
+  ["Trim", "Cooper S packages"],
+  ["Engine", "9 Cooper-S variants"],
+  ["Colors", "2 selected"],
+  ["Max miles", "30,000"],
+];
+document.getElementById("filters").innerHTML = FILTERS
+  .map(([k,v]) => `<span class="chip">${k} · <b>${v}</b></span>`).join("");
+
+/* ---------------- tier definitions (buyer's view: cheaper = better) ---------------- */
+/* z = (asking - fairPrice) / sigma.  Lower z is better for a buyer. */
+const TIERS = [
+  {key:"vgood", name:"Very good deal",  blurb:"Priced well below the market",   color:"#1fb86b", zMax:-1.0},
+  {key:"good",  name:"Good deal",       blurb:"A bit under fair value",          color:"#8fd14f", zMax:-0.4},
+  {key:"fair",  name:"Fair price",      blurb:"Right around market value",       color:"#f2c14e", zMax: 0.4},
+  {key:"bad",   name:"Bad deal",        blurb:"Asking over fair value",          color:"#ef8a3c", zMax: 1.0},
+  {key:"vbad",  name:"Very bad deal",   blurb:"Well above the market",           color:"#e23b2e", zMax: Infinity},
+];
+
+/* ---------------- state ---------------- */
+let rows = [];           // {miles, price, label}
+let usingDemo = true;
+
+const DEMO_FALLBACK = [
+  [3000,32500,"demo"],[6000,31800,"demo"],[8000,31000,"demo"],[11000,30200,"demo"],
+  [14000,29500,"demo"],[16000,29900,"demo"],[19000,28800,"demo"],[22000,28200,"demo"],
+  [25000,27500,"demo"],[28000,27000,"demo"]
+].map(([m,p,l])=>({miles:m,price:p,label:l}));
+const DEMO = GENERATED_LISTINGS;
+
+/* ---------------- parsing ---------------- */
+function parsePaste(text){
+  const out = [];
+  if(!text || !text.trim()) return out;
+
+  // 1) CSV / TSV lines: "miles, price"  (or price,miles handled by heuristic below)
+  const lines = text.split(/\r?\n/);
+  let csvHits = 0;
+  for(const ln of lines){
+    const m = ln.match(/^\s*([\d,]{3,7})\s*[,\t]\s*\$?\s*([\d,]{4,7})\s*$/);
+    if(m){
+      let a = num(m[1]), b = num(m[2]);
+      if(a==null||b==null) continue;
+      // bigger number is price, smaller is miles (within plausible ranges)
+      let price = Math.max(a,b), miles = Math.min(a,b);
+      if(price>=4000 && price<=120000){ out.push({miles:plausMiles(miles),price,label:""}); csvHits++; }
+    }
+  }
+  if(csvHits>=2) return dedupe(out);
+
+  // 2) Block parse: split on the start of each car ("2025 MINI ...")
+  let blocks = text.split(/(?=\b20\d{2}\b\s*MINI)/i).map(b=>b.trim()).filter(Boolean);
+  if(blocks.length < 2) blocks = [text]; // fall through to global zip below
+
+  const blockRows = [];
+  for(const b of blocks){
+    const price = firstPrice(b);
+    const miles = firstMiles(b);
+    if(price!=null && miles!=null) blockRows.push({miles,price,label:firstLabel(b)});
+  }
+  if(blockRows.length>=2) return dedupe(blockRows);
+
+  // 3) Global fallback: collect all prices & all mileages, zip if counts match
+  const prices = allMatches(text,/\$\s?([\d]{1,3}(?:,\d{3})+|\d{4,6})/g).map(num).filter(v=>v!=null && v>=4000 && v<=120000);
+  const miles  = allMatches(text,/([\d]{1,3}(?:,\d{3})*|\d{1,6})\s*(?:mi\b|miles\b)/gi).map(num).filter(v=>v!=null && v>=1 && v<=200000);
+  if(prices.length && prices.length===miles.length){
+    for(let i=0;i<prices.length;i++) out.push({miles:miles[i],price:prices[i],label:""});
+    return dedupe(out);
+  }
+  // last resort: whatever single price+mileage we found in block mode
+  return dedupe(blockRows);
+}
+function firstPrice(s){
+  const m = s.match(/\$\s?([\d]{1,3}(?:,\d{3})+|\d{4,6})/);
+  if(!m) return null; const v=num(m[1]); return (v>=4000 && v<=120000)?v:null;
+}
+function firstMiles(s){
+  let m = s.match(/([\d]{1,3}(?:,\d{3})*|\d{1,6})\s*(?:mi\b|miles\b)/i);
+  if(!m) m = s.match(/mileage[:\s]*([\d,]{1,7})/i);
+  if(!m) return null; const v=num(m[1]); return (v>=0 && v<=200000)?v:null;
+}
+function firstLabel(s){
+  const m = s.match(/\b(20\d{2})\b[^\n]*?MINI[^\n,]*/i);
+  let lab = m ? m[0].replace(/\s+/g," ").trim().slice(0,42) : "";
+  if(/certified|cpo/i.test(s)) lab = (lab?lab+" ":"")+"· CPO";
+  return lab;
+}
+function allMatches(s,re){const r=[];let m;while((m=re.exec(s))!==null)r.push(m[1]);return r;}
+function num(x){if(x==null)return null;const n=parseInt(String(x).replace(/[^\d]/g,""),10);return isNaN(n)?null:n;}
+function plausMiles(m){return m;}
+function dedupe(arr){
+  const seen=new Set(),o=[];
+  for(const r of arr){const k=r.miles+"|"+r.price;if(!seen.has(k)){seen.add(k);o.push(r);}}
+  return o;
+}
+
+/* ---------------- stats + mileage-aware pricing model ---------------- */
+const DEFAULT_DEPRECIATION_RATE_PER_1000_MI = 0.010; // 1.0% of median price per 1k miles when the scraped set is too noisy.
+const MIN_DEPRECIATION_PER_1000_MI = 150;
+const MAX_DEPRECIATION_PER_1000_MI = 550;
+
+function computeModel(data){
+  const n = data.length;
+  if(!n) return {n:0, mean:0, median:0, min:0, max:0, sd:0, type:"empty", a:0, b:0, sigma:1, r2:0, distinctMiles:0, note:"No data"};
+
+  const prices = data.map(d=>d.price);
+  const milesArr = data.map(d=>d.miles);
+  const mean = avg(prices);
+  const median = med(prices);
+  const medianMiles = med(milesArr);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const sd = stdev(prices);
+  const distinctMiles = new Set(data.map(d=>d.miles)).size;
+
+  let b = 0;
+  let r2 = 0;
+  let type = "flat";
+  let note = "Flat average";
+
+  const fallbackPer1000 = clamp(median * DEFAULT_DEPRECIATION_RATE_PER_1000_MI, MIN_DEPRECIATION_PER_1000_MI, MAX_DEPRECIATION_PER_1000_MI);
+
+  if(n>=3 && distinctMiles>=2){
+    const ls = leastSquares(data);
+    const pairSlope = comparablePairSlope(data);
+
+    if(pairSlope != null){
+      b = pairSlope;
+      type = "matched mileage";
+      note = "Mileage adjustment from comparable same-trim/package rows";
+      r2 = ls.r2;
+    } else if(ls.b < -0.03){
+      // Use mileage if the market data has the expected direction, even if R² is low.
+      // Low R² means options/dealer/CPO explain a lot, not that mileage is worth zero.
+      b = clamp(ls.b, -MAX_DEPRECIATION_PER_1000_MI/1000, -MIN_DEPRECIATION_PER_1000_MI/1000);
+      type = ls.r2 >= 0.15 ? "regression" : "noisy regression";
+      note = ls.r2 >= 0.15 ? "Mileage regression" : "Noisy data; still applying observed mileage trend";
+      r2 = ls.r2;
+    } else {
+      // If the raw slope is flat/positive, the sample is being dominated by options/trim/dealer noise.
+      // For identical cars, mileage still matters, so use a conservative low-mileage depreciation curve.
+      b = -fallbackPer1000 / 1000;
+      type = "fallback mileage";
+      note = `Options/trim noise hid mileage; using ${fmt$(fallbackPer1000)} per 1k mi`;
+      r2 = ls.r2;
+    }
+  } else {
+    b = -fallbackPer1000 / 1000;
+    type = "fallback mileage";
+    note = `Small sample; using ${fmt$(fallbackPer1000)} per 1k mi`;
+  }
+
+  // Anchor the line at the median listing. This keeps the model from drifting when a few loaded cars are outliers.
+  const a = median - b * medianMiles;
+  const residuals = data.map(d => d.price - (a + b*d.miles));
+  const sigma = Math.max(stdev(residuals), sd * 0.35, 750);
+
+  return {n, mean, median, min, max, sd, type, a, b, sigma, r2, distinctMiles, medianMiles, note, fallbackPer1000};
+}
+
+function leastSquares(data){
+  const mx = avg(data.map(d=>d.miles));
+  const my = avg(data.map(d=>d.price));
+  let sxx=0,sxy=0,syy=0;
+  for(const d of data){const dx=d.miles-mx,dy=d.price-my;sxx+=dx*dx;sxy+=dx*dy;syy+=dy*dy;}
+  if(sxx<=0) return {a:my,b:0,r2:0,sigma:stdev(data.map(d=>d.price))||1};
+  const b = sxy/sxx, a = my - b*mx;
+  let sse=0;
+  for(const d of data){const pred=a+b*d.miles;sse+=(d.price-pred)**2;}
+  const sigma = Math.sqrt(sse/Math.max(1,data.length-2));
+  const r2 = syy>0 ? Math.max(0, 1 - sse/syy) : 0;
+  return {a,b,r2,sigma};
+}
+
+function comparablePairSlope(data){
+  const slopes=[];
+  for(let i=0;i<data.length;i++){
+    for(let j=i+1;j<data.length;j++){
+      const a=data[i], b=data[j];
+      if(compareKey(a)!==compareKey(b)) continue;
+      const dm=b.miles-a.miles;
+      if(Math.abs(dm)<1000) continue;
+      const slope=(b.price-a.price)/dm;
+      // Only accept plausible depreciation pairs. Positive slopes usually mean hidden options/noise.
+      if(slope < -0.03 && slope > -1.25) slopes.push(slope);
+    }
+  }
+  if(slopes.length<3) return null;
+  return med(slopes);
+}
+
+function compareKey(r){
+  const opts = Array.isArray(r.options) ? r.options.map(x=>String(x).toLowerCase().trim()).sort().join('|') : String(r.options||'').toLowerCase().trim();
+  const trim = String(r.trim||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  return [r.year||'', trim, r.cpo?'cpo':'noncpo', opts].join('::');
+}
+function clamp(v,min,max){return Math.max(min, Math.min(max, v));}
+function predict(model, miles){ return model.a + model.b*miles; }
+function avg(a){return a.reduce((s,x)=>s+x,0)/a.length;}
+function med(a){const s=[...a].sort((x,y)=>x-y);const m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+function stdev(a){if(a.length<2)return 0;const m=avg(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));}
+function fmt$(v){return "$"+Math.round(v).toLocaleString();}
+function fmtK(v){return Math.round(v).toLocaleString();}
+
+/* tier for a given z */
+function tierForZ(z){ for(const t of TIERS){ if(z<=t.zMax) return t; } return TIERS[TIERS.length-1]; }
+/* price thresholds at a mileage: boundaries between tiers */
+function bandsAt(model, miles){
+  const fair = predict(model,miles), s = model.sigma;
+  // boundaries in z: -1.0, -0.4, +0.4, +1.0  -> prices
+  const zEdges = [-1.0,-0.4,0.4,1.0];
+  const edges = zEdges.map(z=>fair+z*s);
+  // returns array of {tier, lo, hi} from cheapest(best) to most expensive(worst)
+  return [
+    {tier:TIERS[0], lo:-Infinity, hi:edges[0]},
+    {tier:TIERS[1], lo:edges[0],  hi:edges[1]},
+    {tier:TIERS[2], lo:edges[1],  hi:edges[2]},
+    {tier:TIERS[3], lo:edges[2],  hi:edges[3]},
+    {tier:TIERS[4], lo:edges[3],  hi:Infinity},
+  ];
+}
+
+/* ---------------- rendering ---------------- */
+const tbody = document.getElementById("tbody");
+let sortState = { key: "price", dir: "asc" };
+function esc(v){return String(v ?? "").replace(/[<>&"]/g, c => ({"<":"&lt;", ">":"&gt;", "&":"&amp;", "\"":"&quot;"}[c]));}
+function safeHttp(url){return /^https?:\/\//i.test(String(url||"")) ? String(url) : "";}
+function sortValue(r, key){
+  switch(key){
+    case "year": return Number(r.year) || 0;
+    case "trim": return String(r.trim || r.label || "").toLowerCase();
+    case "miles": return Number(r.miles) || 0;
+    case "price": return Number(r.price) || 0;
+    case "cpo": return r.cpo ? 1 : 0;
+    case "dealer": return String(r.dealer || "").toLowerCase();
+    case "options": return Array.isArray(r.options) ? r.options.join(", ").toLowerCase() : String(r.options || "").toLowerCase();
+    case "links": return (safeHttp(r.dealerUrl) ? 2 : 0) + (safeHttp(r.url) ? 1 : 0);
+    default: return "";
+  }
+}
+function sortedRows(){
+  const key = sortState.key, dir = sortState.dir === "desc" ? -1 : 1;
+  return rows.map((r,i)=>({r,i})).sort((a,b)=>{
+    const av = sortValue(a.r,key), bv = sortValue(b.r,key);
+    let cmp;
+    if(typeof av === "number" && typeof bv === "number") cmp = av - bv;
+    else cmp = String(av).localeCompare(String(bv), undefined, {numeric:true, sensitivity:"base"});
+    return cmp ? cmp * dir : a.i - b.i;
+  }).map(x=>x.r);
+}
+function updateSortHeaders(){
+  document.querySelectorAll("th.sortable").forEach(th=>{
+    const active = th.dataset.sort === sortState.key;
+    th.classList.toggle("active", active);
+    const ind = th.querySelector(".sort-ind");
+    if(ind) ind.textContent = active ? (sortState.dir === "asc" ? "▲" : "▼") : "↕";
+    th.title = active ? `Sorted ${sortState.dir === "asc" ? "ascending" : "descending"}. Click to reverse.` : "Click to sort";
+  });
+}
+function renderTable(){
+  const status = document.getElementById("sourceStatus");
+  if (status) {
+    if (GENERATED_LISTINGS.length) {
+      status.innerHTML = `<b>Updated:</b> ${esc(GENERATED_AT || "unknown")} · <b>Rows:</b> ${GENERATED_LISTINGS.length} · <a href="${esc(GENERATED_SOURCE_URL)}" target="_blank" rel="noopener" style="color:var(--green)">source search</a>`;
+    } else {
+      status.innerHTML = `No scraped listings embedded yet. Run <code>update-mini-deal-o-meter-manual.bat</code> for a manual nationwide scrape or <code>update-mini-deal-o-meter.bat</code> for the automatic scrape.`;
+    }
+  }
+  updateSortHeaders();
+  tbody.innerHTML = "";
+  if(!rows.length){
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty">No listing data yet. Run the updater BAT to fill this page with current MINI results.</div></td></tr>`;
+    return;
+  }
+  sortedRows().forEach((r)=>{
+    const tr=document.createElement("tr");
+    const mini = safeHttp(r.url) ? `<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:var(--green)">MINI listing</a>` : "";
+    const dealer = safeHttp(r.dealerUrl) ? `<a href="${esc(r.dealerUrl)}" target="_blank" rel="noopener" style="color:var(--green)">Dealer page</a>` : `<span style="color:var(--muted2)">Dealer page not found</span>`;
+    const opts = Array.isArray(r.options) && r.options.length ? r.options.join(", ") : "—";
+    tr.innerHTML =
+      `<td>${esc(r.year || "—")}</td>`+
+      `<td>${esc(r.trim || r.label || "MINI")}</td>`+
+      `<td>${fmtK(r.miles)}</td>`+
+      `<td>${fmt$(r.price)}</td>`+
+      `<td>${r.cpo ? "Yes" : "—"}</td>`+
+      `<td>${esc(r.dealer || "—")}</td>`+
+      `<td class="lab">${esc(opts)}</td>`+
+      `<td class="lab">${mini}${mini ? "<br>" : ""}${dealer}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderStats(model){
+  const el=document.getElementById("stats");
+  if(!model.n){ el.innerHTML=`<div class="empty" style="grid-column:1/-1">Load some listings to see the stats.</div>`; return; }
+  const depr = model.type==="regression" ? `${fmt$(-model.b*1000)}<small> /1k mi</small>` : "—";
+  const avgMiles = avg(rows.filter(r=>r.price>0 && r.miles>=0).map(r=>r.miles));
+  const cards = [
+    ["Listings", model.n+"", ""],
+    ["Avg price", fmt$(model.mean), ""],
+    ["Avg miles", fmtK(avgMiles), "mi"],
+    ["Median price", fmt$(model.median), ""],
+    ["Price range", fmt$(model.min), "to "+fmt$(model.max)],
+    ["Depreciation", depr, ""],
+    ["Spread (σ)", fmt$(model.sigma), ""],
+  ];
+  el.innerHTML = cards.map(([k,v,sub])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v} ${sub?`<small>${sub}</small>`:""}</div></div>`).join("");
+
+  const mf=document.getElementById("modelFlag");
+  mf.style.background="rgba(25,160,110,.12)"; mf.style.color="var(--green)"; mf.style.border="1px solid rgba(25,160,110,.3)";
+  const per1k = -model.b * 1000;
+  mf.textContent=`▣ ${model.type} model · ${model.note} · mileage value ${fmt$(per1k)}/1k mi · R² = ${model.r2.toFixed(2)} · n = ${model.n}${GENERATED_AT ? " · updated " + GENERATED_AT : ""}`;
+}
+
+/* gauge */
+function buildGauge(activeIdx, z){
+  const svg=document.getElementById("gaugeSvg");
+  const cx=150, cy=160, r=120;
+  // semicircle from 180deg (left) to 0deg (right)
+  const seg=180/5;
+  let html="";
+  // colored arcs
+  TIERS.forEach((t,i)=>{
+    const a0=180-i*seg, a1=180-(i+1)*seg;
+    html+=`<path d="${arc(cx,cy,r,a0,a1)}" stroke="${t.color}" stroke-width="20" fill="none" stroke-linecap="butt" opacity="${activeIdx==null?0.55:(i===activeIdx?1:0.28)}"/>`;
+  });
+  // tick labels
+  const labels=["◀ better","","","","worse ▶"];
+  // needle
+  let needleA;
+  if(z==null){ needleA=90; }
+  else {
+    // map z in [-1.4 .. +1.4] across 180..0
+    const zc=Math.max(-1.4,Math.min(1.4,z));
+    needleA = 90 - (zc/1.4)*90; // z=-1.4 -> 180, z=0 ->90, z=1.4 ->0
+  }
+  const nx=cx+(r-30)*Math.cos(deg(needleA)), ny=cy-(r-30)*Math.sin(deg(needleA));
+  html+=`<g class="needle" style="transform-origin:${cx}px ${cy}px">`+
+        `<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${z==null?'#5a6066':'#f3efe8'}" stroke-width="4" stroke-linecap="round"/>`+
+        `<circle cx="${cx}" cy="${cy}" r="9" fill="#1f2226" stroke="#3a3f45" stroke-width="2"/></g>`;
+  html+=`<text x="20" y="150" fill="#6b7178" font-family="JetBrains Mono" font-size="11">◀ better</text>`;
+  html+=`<text x="232" y="150" fill="#6b7178" font-family="JetBrains Mono" font-size="11">worse ▶</text>`;
+  svg.innerHTML=html;
+}
+function arc(cx,cy,r,a0,a1){
+  const p0={x:cx+r*Math.cos(deg(a0)),y:cy-r*Math.sin(deg(a0))};
+  const p1={x:cx+r*Math.cos(deg(a1)),y:cy-r*Math.sin(deg(a1))};
+  const large=Math.abs(a1-a0)>180?1:0;
+  return `M ${p0.x.toFixed(1)} ${p0.y.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+}
+function deg(d){return d*Math.PI/180;}
+
+/* bands list + verdict */
+function renderEvaluation(model){
+  const bandsEl=document.getElementById("bands");
+  const verdict=document.getElementById("verdict");
+  const vsub=document.getElementById("verdictSub");
+  const miles=num(document.getElementById("mi").value);
+  let ask=num(document.getElementById("ask").value);
+  const cpo=num(document.getElementById("cpo").value)||0;
+
+  if(!model.n || miles==null){
+    bandsEl.innerHTML=`<div class="empty">Enter a mileage to see the five price bands.</div>`;
+    verdict.textContent="Enter a mileage"; verdict.style.color="var(--ink)";
+    vsub.textContent="Bands update live as you type.";
+    buildGauge(null,null);
+    return;
+  }
+  const fair=predict(model,miles);
+  const bands=bandsAt(model,miles);
+  const adjAsk = ask!=null ? ask-cpo : null;
+  let activeIdx=null, z=null;
+  if(adjAsk!=null){
+    z=(adjAsk-fair)/model.sigma;
+    bands.forEach((b,i)=>{ if(adjAsk> b.lo && adjAsk<= b.hi) activeIdx=i; });
+    if(adjAsk<=bands[0].hi) activeIdx=0;
+  }
+
+  bandsEl.innerHTML = bands.map((b,i)=>{
+    const lo = b.lo===-Infinity ? "" : fmt$(b.lo);
+    const hi = b.hi=== Infinity ? "" : fmt$(b.hi);
+    let priceTxt;
+    if(b.lo===-Infinity) priceTxt = "≤ "+hi;
+    else if(b.hi===Infinity) priceTxt = "≥ "+lo;
+    else priceTxt = lo+" – "+hi;
+    return `<div class="band ${i===activeIdx?'active':''}" style="color:${b.tier.color}">
+      <div class="sw" style="background:${b.tier.color}"></div>
+      <div class="nm" style="color:var(--ink)">${b.tier.name}<small>${b.tier.blurb}</small></div>
+      <div class="pr" style="color:${b.tier.color}">${priceTxt}</div>
+    </div>`;
+  }).join("");
+
+  if(adjAsk==null){
+    verdict.textContent="Fair price ≈ "+fmt$(fair);
+    verdict.style.color="var(--t-fair)";
+    vsub.innerHTML=`At <b>${fmtK(miles)} mi</b>, market value lands near <b>${fmt$(fair)}</b>. Add an asking price for a verdict.`;
+    buildGauge(null,null);
+  } else {
+    const t=bands[activeIdx].tier;
+    verdict.textContent=t.name.toUpperCase();
+    verdict.style.color=t.color;
+    const diff=adjAsk-fair;
+    const sign=diff<0?"under":"over";
+    const cpoNote = cpo? ` (after −${fmt$(cpo)} CPO credit → ${fmt$(adjAsk)})`:"";
+    vsub.innerHTML=`${fmt$(Math.abs(diff))} <b>${sign}</b> the ${fmt$(fair)} fair price${cpoNote} · z = ${z.toFixed(2)}`;
+    buildGauge(activeIdx,z);
+  }
+}
+
+/* chart */
+function renderChart(model){
+  const cv=document.getElementById("chart");
+  const ctx=cv.getContext("2d");
+  const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const padL=78,padR=24,padT=22,padB=46;
+  const x0=padL,x1=W-padR,y0=H-padB,y1=padT;
+
+  if(!model.n){ ctx.fillStyle="#6b7178";ctx.font="15px JetBrains Mono";ctx.textAlign="center";
+    ctx.fillText("Load listings to plot price vs mileage.",W/2,H/2);return; }
+
+  // domains
+  const miles=rows.map(r=>r.miles), prices=rows.map(r=>r.price);
+  const tgtMi=num(document.getElementById("mi").value);
+  const tgtAsk=num(document.getElementById("ask").value);
+  let maxMi=Math.max(...miles, tgtMi||0, 1000); maxMi=Math.ceil(maxMi/5000)*5000;
+  let minMi=0;
+  let maxP=Math.max(...prices, tgtAsk||0), minP=Math.min(...prices, tgtAsk||Infinity);
+  const padP=(maxP-minP)*0.12||2000; maxP+=padP; minP-=padP;
+  minP=Math.floor(minP/1000)*1000; maxP=Math.ceil(maxP/1000)*1000;
+
+  const X=m=>x0+(m-minMi)/(maxMi-minMi)*(x1-x0);
+  const Y=p=>y0+(p-minP)/(maxP-minP)*(y1-y0);
+
+  // grid + axes
+  ctx.strokeStyle="#23272c";ctx.lineWidth=1;ctx.fillStyle="#6b7178";
+  ctx.font="11px JetBrains Mono";ctx.textAlign="right";ctx.textBaseline="middle";
+  const py=5;
+  for(let i=0;i<=py;i++){const p=minP+(maxP-minP)*i/py;const y=Y(p);
+    ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();
+    ctx.fillText("$"+Math.round(p/1000)+"k",x0-10,y);}
+  ctx.textAlign="center";ctx.textBaseline="top";
+  const px=Math.min(8,maxMi/5000);
+  for(let i=0;i<=px;i++){const m=minMi+(maxMi-minMi)*i/px;const x=X(m);
+    ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y0);ctx.strokeStyle="#1c2024";ctx.stroke();
+    ctx.fillStyle="#6b7178";ctx.fillText(Math.round(m/1000)+"k",x,y0+8);}
+  ctx.fillStyle="#9aa0a6";ctx.font="12px JetBrains Mono";
+  ctx.fillText("MILEAGE",  (x0+x1)/2, H-16);
+  ctx.save();ctx.translate(20,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("PRICE",0,0);ctx.restore();
+
+  // fair band (±0.4 sigma) and regression/flat line
+  const drawLineY = m => Y(predict(model,m));
+  // band polygon
+  ctx.fillStyle="rgba(242,193,78,0.16)";
+  ctx.beginPath();
+  ctx.moveTo(X(minMi),Y(predict(model,minMi)+0.4*model.sigma));
+  ctx.lineTo(X(maxMi),Y(predict(model,maxMi)+0.4*model.sigma));
+  ctx.lineTo(X(maxMi),Y(predict(model,maxMi)-0.4*model.sigma));
+  ctx.lineTo(X(minMi),Y(predict(model,minMi)-0.4*model.sigma));
+  ctx.closePath();ctx.fill();
+  // line
+  ctx.strokeStyle="#19a06e";ctx.lineWidth=2.5;ctx.beginPath();
+  ctx.moveTo(X(minMi),drawLineY(minMi));ctx.lineTo(X(maxMi),drawLineY(maxMi));ctx.stroke();
+
+  // points
+  rows.forEach(r=>{
+    ctx.beginPath();ctx.arc(X(r.miles),Y(r.price),5,0,7);
+    ctx.fillStyle="#7fb6ff";ctx.globalAlpha=.9;ctx.fill();ctx.globalAlpha=1;
+    ctx.strokeStyle="#0e0f11";ctx.lineWidth=1.5;ctx.stroke();
+  });
+
+  // target
+  if(tgtMi!=null){
+    const tx=X(tgtMi);
+    ctx.strokeStyle="rgba(214,35,31,.5)";ctx.setLineDash([4,4]);ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(tx,y1);ctx.lineTo(tx,y0);ctx.stroke();ctx.setLineDash([]);
+    if(tgtAsk!=null){
+      ctx.beginPath();ctx.arc(tx,Y(tgtAsk),8,0,7);ctx.fillStyle="#d6231f";ctx.fill();
+      ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+    } else {
+      // mark predicted fair point
+      ctx.beginPath();ctx.arc(tx,drawLineY(tgtMi),6,0,7);ctx.fillStyle="#d6231f";ctx.globalAlpha=.6;ctx.fill();ctx.globalAlpha=1;
+    }
+  }
+}
+
+/* ---------------- orchestration ---------------- */
+function recompute(reTable=true){
+  if(reTable) renderTable();
+  const data=rows.filter(r=>r.price>0 && r.miles>=0);
+  const model=computeModel(data);
+  renderStats(model);
+  renderEvaluation(model);
+  renderChart(model);
+  renderNotes(model);
+}
+
+function renderNotes(model){
+  const slope = model.type==="regression" ? fmt$(-model.b*1000) : null;
+  document.getElementById("notes").innerHTML = `
+    <p>This tool grades a listing the way a careful buyer should: not against one flat average, but against what a car <i>at that specific mileage</i> should cost. It fits a straight line through your listings (price as a function of miles) and measures how far an asking price sits from that line, in units of the market's own scatter (σ).</p>
+
+    <h4>The five bands</h4>
+    <ul>
+      <li><b style="color:var(--t-vgood)">Very good</b> — more than 1.0σ below the fair-price line. A genuine bargain; pounce / verify why it's cheap (accident history, base options).</li>
+      <li><b style="color:var(--t-good)">Good</b> — 0.4σ to 1.0σ below. Solid; worth pursuing.</li>
+      <li><b style="color:var(--t-fair)">Fair</b> — within ±0.4σ of the line. Market price; room to negotiate toward the good band.</li>
+      <li><b style="color:var(--t-bad)">Bad</b> — 0.4σ to 1.0σ above. Overpriced unless it has standout options/condition.</li>
+      <li><b style="color:var(--t-vbad)">Very bad</b> — more than 1.0σ above. Walk, or use it as leverage.</li>
+    </ul>
+
+    <h4>Reading the dashboard</h4>
+    <ul>
+      <li><b>Depreciation</b> is currently <code>${slope || '$0'} per 1,000 miles</code> in the active mileage model — that's roughly what each extra mile is costing you, and your best lever in negotiation ("it has 6k more miles than that one, so ~${slope||'$X'}×6 less").</li>
+      <li>The <b>R²</b> on the model flag tells you how tightly raw price tracks mileage. Low R² does <i>not</i> mean mileage is worth zero; it usually means packages, CPO status, dealer pricing, color, or trim generation are creating noise. The model now keeps a mileage adjustment even when the scraped set is noisy.</li>
+      <li>Small sample (<b>n &lt; 6</b>) → treat bands as directional, not gospel. More scraped listings = sharper bands.</li>
+    </ul>
+
+    <h4>Cooper S buying notes</h4>
+    <ul>
+      <li><b>CPO is worth real money.</b> A MINI Certified Pre-Owned car adds warranty coverage beyond the original factory term plus an inspection. A CPO car priced a bit above a private-party-style listing can still be the better <i>deal</i> — use the CPO credit field to bake that in.</li>
+      <li><b>F56 vs F66.</b> Your search mixes the previous-gen hardtop (F56) and the new-generation one (F66, redesigned for 2025). They aren't perfect substitutes — the F66 commands a premium and has a different interior/infotainment. If your list has both, expect two clusters; consider evaluating them separately.</li>
+      <li><b>Options drive the scatter.</b> JCW trim bits, premium/iconic packages, Harman Kardon, head-up display and the larger wheels all push price up independent of mileage. A car above the line isn't automatically a bad deal if it's loaded.</li>
+      <li><b>Mileage sweet spot.</b> Depreciation is steepest early. With everything here under 30k miles, the cheapest cost-per-remaining-mile usually sits in the middle of your range, not the lowest-mile car.</li>
+      <li><b>Negotiate to the line.</b> A fair-priced car is a fine starting point — open below the "good deal" threshold shown for its mileage and let the fair price be your walk-up number.</li>
+    </ul>
+
+    <h4>How the updater works</h4>
+    <ul>
+      <li>The page itself stays static and user-side only. Run <code>update-mini-deal-o-meter.bat</code> on your Windows PC when you want fresh numbers; it opens MINI in a real browser, reads the rendered listings, then embeds the latest mileage/price rows into this HTML file.</li>
+      <li>Manual mode lets you set nationwide/any-distance in the real MINI page before the local updater scrapes the visible results.</li>
+    </ul>`;
+}
+
+/* ---------------- wire up ---------------- */
+document.querySelectorAll("th.sortable").forEach(th=>{
+  th.addEventListener("click", ()=>{
+    const key = th.dataset.sort;
+    if(sortState.key === key) sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+    else {
+      sortState.key = key;
+      sortState.dir = (key === "price" || key === "miles" || key === "year") ? "asc" : "asc";
+    }
+    renderTable();
+  });
+});
+["mi","ask","cpo"].forEach(id=>document.getElementById(id).addEventListener("input",()=>{
+  const data=rows.filter(r=>r.price>0&&r.miles>=0);
+  const model=computeModel(data);
+  renderEvaluation(model); renderChart(model);
+}));
+
+/* init with generated data only */
+rows=DEMO.map(r=>({...r}));
+if (rows.length) {
+  const sortedMiles = rows.map(r=>r.miles).filter(Number.isFinite).sort((a,b)=>a-b);
+  document.getElementById("mi").value = sortedMiles.length ? sortedMiles[Math.floor(sortedMiles.length/2)] : "15000";
+} else {
+  document.getElementById("mi").value="15000";
+}
+recompute();
+</script>
+</body>
+</html>
