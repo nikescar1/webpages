@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Arcade Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0E; --surface:#16191F; --surface-2:#1E222A; --line:rgba(255,255,255,.08);
+    --accent:#1FD9A0; --accent-dim:rgba(31,217,160,.16);
+    --text:#F3F5F6; --muted:#8A929C; --muted-2:#5A626C;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:"Hanken Grotesk",sans-serif;color:var(--text);
+    background:radial-gradient(120% 80% at 50% -10%, #1a1c22, #050507 70%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;min-height:100%;padding:14px;
+  }
+  /* ---------- VERSION TOGGLE (demo chrome) ---------- */
+  .vswitch{display:inline-flex;background:#15171C;border:1px solid var(--line);border-radius:30px;padding:4px;gap:4px;flex:0 0 auto;}
+  .vbtn{border:none;background:none;color:var(--muted);font-family:inherit;font-weight:700;font-size:12.5px;padding:8px 15px;border-radius:24px;cursor:pointer;transition:.12s;}
+  .vbtn.active{background:var(--accent);color:#04130d;}
+  /* ---------- PHONE FRAME (18:9 portrait) ---------- */
+  .phone{
+    position:relative;aspect-ratio:9/18;height:min(88vh,840px);max-width:96vw;
+    background:#000;border-radius:46px;padding:9px;
+    box-shadow:0 0 0 2px #23262d, 0 30px 70px rgba(0,0,0,.6);
+  }
+  .notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:96px;height:7px;border-radius:8px;background:#1c1f25;z-index:50;}
+  .screen{
+    position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;
+    background:var(--bg);display:flex;flex-direction:column;
+  }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar{padding:30px 18px 12px;flex:0 0 auto;}
+  .tb-row{display:flex;align-items:center;gap:11px;}
+  .logo{width:34px;height:34px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#04130d;flex:0 0 auto;}
+  .logo svg{width:20px;height:20px;}
+  .brand h1{font-family:"Bricolage Grotesque";font-weight:800;font-size:17px;margin:0;letter-spacing:-.4px;}
+  .brand p{margin:1px 0 0;font-size:11px;color:var(--muted);font-weight:600;}
+  .back{margin-left:auto;background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .back svg{width:18px;height:18px;}
+  .progress{display:flex;gap:5px;margin-top:16px;}
+  .seg{flex:1;height:4px;border-radius:4px;background:var(--surface-2);overflow:hidden;}
+  .seg b{display:block;height:100%;width:0;background:var(--accent);border-radius:4px;transition:width .4s cubic-bezier(.5,1.4,.5,1);}
+  .seg.done b{width:100%;} .seg.active b{width:50%;}
+  .steplabel{margin-top:9px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.3px;}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;min-height:0;overflow:hidden;padding:4px 18px 90px;display:flex;flex-direction:column;}
+  .screen-in{animation:fade .35s ease;height:100%;display:flex;flex-direction:column;min-height:0;}
+  @keyframes fade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  .qrow{margin:4px 0 12px;flex:0 0 auto;}
+  .qkick{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1.5px;}
+  .q{font-family:"Bricolage Grotesque";font-weight:800;font-size:22px;line-height:1.08;margin:5px 0 0;letter-spacing:-.5px;}
+
+  /* ---------- TILES ---------- */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr;gap:11px;flex:1 1 auto;min-height:0;}
+  .grid.vert{display:flex;flex-direction:column;gap:11px;flex:1 1 auto;min-height:0;}
+  .tile{
+    position:relative;border-radius:18px;overflow:hidden;cursor:pointer;background:#0F1217;
+    border:1px solid var(--line);min-height:0;
+    animation:rise .4s backwards cubic-bezier(.2,1,.4,1);transition:transform .12s ease;
+  }
+  .grid.vert .tile{flex:1 1 0;}
+  @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97);}to{opacity:1;transform:none;}}
+  .tile:active{transform:scale(.96);}
+  .tile.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent), 0 0 22px rgba(31,217,160,.35);}
+  /* caption: a short, strong bar pinned to the very bottom so the animation owns the tile */
+  .cap{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:22px 12px 10px;
+    background:linear-gradient(to top, rgba(6,8,11,.97) 0%, rgba(6,8,11,.88) 38%, rgba(6,8,11,.4) 74%, transparent 100%);
+    display:flex;align-items:flex-end;gap:8px;}
+  .cap .ti{width:18px;height:18px;flex:0 0 auto;color:#fff;opacity:.95;margin-bottom:1px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));}
+  .cap .ti svg{width:18px;height:18px;}
+  .cap .txt h3{font-family:"Bricolage Grotesque";font-weight:800;font-size:15px;margin:0;letter-spacing:-.2px;line-height:1.05;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.95),0 0 14px rgba(0,0,0,.7);}
+  .cap .txt span{display:none;font-size:11.5px;color:#C7CDD4;font-weight:500;text-shadow:0 1px 4px rgba(0,0,0,.9);}
+  /* row tiles (the 3 genres): caption still bottom-anchored, full-width art above */
+  .tile.row .cap{padding:24px 16px 12px;}
+  .tile.row .cap .ti,.tile.row .cap .ti svg{width:22px;height:22px;}
+  .tile.row .cap .txt span{display:block;margin-top:2px;}
+  .tile.row .cap .txt h3{font-size:18px;}
+  /* recap tiles (final screen) */
+  .tile.recap{cursor:default;}
+  .tile.recap:active{transform:none;}
+  .rtag{position:absolute;top:8px;left:8px;z-index:4;font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+    color:#fff;background:rgba(6,8,11,.72);border:1px solid rgba(255,255,255,.14);padding:3px 8px;border-radius:20px;}
+
+  /* ---------- GENRE SCREEN (fills, no scroll) ---------- */
+  .genre-screen{height:100%;display:flex;flex-direction:column;min-height:0;}
+  .genre-mid{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;}
+  .genre-mid .grid.vert{flex:1 1 auto;min-height:0;}
+  /* substantial surprise-me tile with wand + sparkles */
+  .surprise-tile{position:relative;width:100%;flex:0 0 80px;margin-top:12px;border:none;cursor:pointer;border-radius:18px;overflow:hidden;
+    background:linear-gradient(120deg,#12B98A,#1FD9A0 55%,#46E6BE);box-shadow:0 0 28px rgba(31,217,160,.4);transition:transform .12s;
+    animation:rise .4s .25s backwards cubic-bezier(.2,1,.4,1);}
+  .surprise-tile:active{transform:scale(.97);}
+  .surprise-tile .scap{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;justify-content:center;padding:0 18px;}
+  .surprise-tile h3{font-family:"Bricolage Grotesque";font-weight:800;font-size:20px;margin:0;color:#042018;letter-spacing:-.4px;}
+  .surprise-tile span{font-size:12.5px;font-weight:700;color:rgba(4,32,24,.72);margin-top:2px;}
+  .wand{position:absolute;inset:0;overflow:hidden;}
+  .wand .wico{position:absolute;right:18px;top:50%;transform:translateY(-50%) rotate(-12deg);color:#042018;animation:wiggle 2.4s ease-in-out infinite;transform-origin:bottom right;}
+  .wand .wico svg{width:42px;height:42px;}
+  @keyframes wiggle{0%,100%{transform:translateY(-50%) rotate(-16deg);}50%{transform:translateY(-50%) rotate(6deg);}}
+  .wand .spk{position:absolute;opacity:0;transform:scale(.3);animation:spk var(--dur) ease-in-out var(--del) infinite;}
+  .wand .spk svg{display:block;filter:drop-shadow(0 0 5px currentColor);}
+  @keyframes spk{0%,100%{opacity:0;transform:scale(.3) rotate(0deg);}45%{opacity:1;transform:scale(1) rotate(40deg);}}
+
+  /* ---------- SCENES (animated previews) ---------- */
+  .sc{position:absolute;inset:0;overflow:hidden;}
+  .orbit i{position:absolute;border-radius:50%;background:currentColor;box-shadow:0 0 9px currentColor;
+    animation:tw var(--dur) ease-in-out var(--del) infinite, dft calc(var(--dur)*1.6) ease-in-out var(--del) infinite;}
+  @keyframes tw{0%,100%{opacity:.25;}50%{opacity:1;}}
+  @keyframes dft{0%,100%{transform:translate(0,0);}50%{transform:translate(8px,-10px);}}
+
+  .scroll u{position:absolute;top:6%;bottom:30%;width:6px;border-radius:4px;background:currentColor;opacity:.5;animation:scx 1.1s linear var(--del) infinite;}
+  .scroll .grnd{position:absolute;left:0;right:0;bottom:24%;height:3px;background:currentColor;opacity:.5;box-shadow:0 0 12px currentColor;}
+  .scroll .hop{position:absolute;left:46%;bottom:24%;width:20px;height:20px;border-radius:6px;background:currentColor;box-shadow:0 0 18px currentColor;animation:hop .72s ease-in-out infinite;}
+  @keyframes scx{from{transform:translateX(80px);}to{transform:translateX(-150px);}}
+  @keyframes hop{0%,100%{transform:translateY(0) scaleY(.92);}50%{transform:translateY(-30px) scaleY(1.05);}}
+
+  .rain i{position:absolute;top:-14%;width:10px;height:10px;border-radius:3px;background:currentColor;opacity:.95;box-shadow:0 0 9px currentColor;animation:fall var(--dur) linear var(--del) infinite;}
+  .rain .catch{position:absolute;bottom:30%;left:42%;width:30px;height:8px;border-radius:6px;background:currentColor;box-shadow:0 0 14px currentColor;animation:slide 1.9s ease-in-out infinite;}
+  @keyframes fall{from{transform:translateY(0);}to{transform:translateY(380%);}}
+  @keyframes slide{0%,100%{transform:translateX(-32px);}50%{transform:translateX(32px);}}
+
+  .gridpop{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:16% 18% 28%;}
+  .gridpop.wide{grid-template-columns:repeat(6,1fr);padding:14% 14% 30%;}
+  .gridpop i{border-radius:6px;background:currentColor;opacity:.2;box-shadow:0 0 0 currentColor;animation:pop 1.9s ease-in-out var(--del) infinite;}
+  @keyframes pop{0%,100%{opacity:.16;transform:scale(.78);box-shadow:0 0 0 currentColor;}45%{opacity:1;transform:scale(1);box-shadow:0 0 12px currentColor;}}
+
+  .rise i{position:absolute;bottom:26%;width:9%;border-radius:4px 4px 0 0;background:currentColor;height:var(--h);opacity:.9;box-shadow:0 0 14px currentColor;transform-origin:bottom;animation:grow 1.9s ease-in-out var(--del) infinite;}
+  @keyframes grow{0%,100%{transform:scaleY(.36);}50%{transform:scaleY(1);}}
+
+  .bounce b{position:absolute;bottom:38%;width:22px;height:22px;border-radius:7px;background:currentColor;box-shadow:0 0 18px currentColor;animation:bnc .95s cubic-bezier(.3,0,.2,1) var(--del,0s) infinite;}
+  .bounce .sh{position:absolute;bottom:35%;width:32px;height:6px;border-radius:50%;background:rgba(0,0,0,.5);filter:blur(2px);animation:shk .95s ease-in-out infinite;}
+  @keyframes bnc{0%,100%{transform:translateY(0) scaleY(.9);}50%{transform:translateY(-34px) scaleY(1.06);}}
+  @keyframes shk{0%,100%{transform:scaleX(1);opacity:.5;}50%{transform:scaleX(.55);opacity:.22;}}
+
+  .beam u{position:absolute;left:-45%;width:60%;height:5px;border-radius:4px;background:currentColor;opacity:.9;box-shadow:0 0 18px currentColor;animation:sweep 1.7s linear var(--del) infinite;}
+  @keyframes sweep{from{transform:translateX(0) rotate(-18deg);}to{transform:translateX(300%) rotate(-18deg);}}
+
+  .pulse{display:flex;align-items:center;justify-content:center;}
+  .pulse .pc{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);width:0;height:0;}
+  .pulse u{position:absolute;left:0;top:0;border-radius:50%;border:2.5px solid currentColor;transform:translate(-50%,-50%);opacity:0;animation:rng 1.9s ease-out var(--del,0s) infinite;}
+  .pulse b{position:absolute;left:0;top:0;width:16px;height:16px;border-radius:50%;background:currentColor;transform:translate(-50%,-50%);box-shadow:0 0 20px currentColor;animation:core 1.9s ease-in-out infinite;}
+  @keyframes rng{0%{opacity:.95;width:18px;height:18px;}100%{opacity:0;width:140px;height:140px;}}
+  @keyframes core{0%,100%{transform:translate(-50%,-50%) scale(.8);}50%{transform:translate(-50%,-50%) scale(1.2);}}
+
+  /* ---------- WELCOME ---------- */
+  .welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%;gap:8px;padding:0 10px 30px;}
+  .mascot{width:104px;height:104px;border-radius:28px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#04130d;
+    box-shadow:0 0 50px rgba(31,217,160,.5);animation:bob 2.6s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg);}50%{transform:translateY(-9px) rotate(3deg);}}
+  .mascot svg{width:56px;height:56px;}
+  .welcome .big{font-family:"Bricolage Grotesque";font-weight:800;font-size:31px;line-height:1.04;letter-spacing:-1px;margin:14px 0 2px;}
+  .welcome p{color:var(--muted);font-size:14px;max-width:280px;margin:0;font-weight:500;line-height:1.5;}
+
+  /* ---------- BUTTONS ---------- */
+  .cta{width:100%;font-family:"Bricolage Grotesque";font-weight:700;font-size:16px;cursor:pointer;border:none;border-radius:16px;
+    padding:16px;background:var(--accent);color:#04130d;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:18px;
+    box-shadow:0 8px 24px rgba(31,217,160,.3);transition:transform .1s;}
+  .cta:active{transform:scale(.98);}
+  .cta svg{width:20px;height:20px;}
+  .ghostlink{display:block;width:100%;text-align:center;background:none;border:none;color:var(--muted);font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;margin-top:14px;padding:6px;}
+
+  /* ---------- TWIST ---------- */
+  .twistbox{display:flex;flex-direction:column;gap:13px;}
+  .hint{font-size:12.5px;color:var(--muted);font-weight:500;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{cursor:pointer;border:1px solid var(--line);border-radius:30px;padding:9px 13px;font-size:12.5px;font-weight:600;background:var(--surface);color:var(--text);transition:.12s;}
+  .chip:active{transform:scale(.95);}
+  .chip.on{background:var(--accent);color:#04130d;border-color:var(--accent);}
+  textarea{width:100%;min-height:80px;resize:none;font-family:inherit;font-size:15px;border:1px solid var(--line);border-radius:16px;
+    padding:13px;color:var(--text);background:var(--surface);font-weight:500;}
+  textarea:focus{outline:none;border-color:var(--accent);}
+  textarea::placeholder{color:var(--muted-2);}
+
+  /* ---------- RESULT ---------- */
+  .tags{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;}
+  .tag{font-size:11px;font-weight:700;padding:6px 11px;border-radius:30px;border:1px solid var(--line);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:5px;}
+  .tag svg{width:13px;height:13px;color:var(--accent);}
+  .promptfield{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:14px;position:relative;}
+  .pf-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .autochip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:30px;padding:6px 11px;font-size:12px;font-weight:700;color:var(--text);}
+  .autochip svg{width:14px;height:14px;color:var(--accent);}
+  .copybtn{background:none;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;font-family:inherit;font-weight:700;font-size:12px;}
+  .copybtn svg{width:15px;height:15px;}
+  .pf-text{font-size:15px;line-height:1.55;font-weight:500;color:var(--text);padding-right:8px;}
+  .pf-text b{color:var(--accent);font-weight:700;}
+
+  /* ---------- BOTTOM NAV ---------- */
+  .nav{position:absolute;bottom:0;left:0;right:0;height:84px;background:rgba(10,11,14,.92);backdrop-filter:blur(12px);
+    border-top:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-around;padding:11px 10px 0;z-index:40;}
+  .ni{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--muted);font-family:inherit;font-weight:600;font-size:11px;flex:1;padding:0;}
+  .ni svg{width:24px;height:24px;}
+  .ni.active{color:var(--text);}
+  .ni.home{margin-top:-22px;}
+  .ni.home .hc{width:56px;height:56px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#04130d;box-shadow:0 6px 20px rgba(31,217,160,.45);}
+  .ni.home .hc svg{width:26px;height:26px;}
+  .ni:active{transform:scale(.92);}
+
+  .toast{position:absolute;bottom:100px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--surface-2);color:var(--text);
+    padding:11px 18px;border-radius:30px;font-weight:700;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:60;border:1px solid var(--line);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div class="vswitch" id="vswitch">
+  <button class="vbtn active" data-mode="ftue">First-time · simple</button>
+  <button class="vbtn" data-mode="full">Full version</button>
+</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="screen">
+    <div class="topbar" id="topbar"></div>
+    <div class="main" id="main"></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="toast" id="toast">Copied ✦</div>
+  </div>
+</div>
+
+<script>
+const S='stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+const ICON={
+  action:`<svg viewBox="0 0 24 24" ${S}><polygon points="13 2 4 14 11 14 10 22 19 9 12 9 13 2"/></svg>`,
+  puzzle:`<svg viewBox="0 0 24 24" ${S}><path d="M4 8h2a2 2 0 1 0 4 0h4a2 2 0 1 1 0 4v4a2 2 0 1 0-4 0H6a2 2 0 0 0 0-4H4z"/></svg>`,
+  strategy:`<svg viewBox="0 0 24 24" ${S}><path d="M9 6l3-3 3 3"/><path d="M7 9h10l-1 7H8z"/><line x1="6" y1="20" x2="18" y2="20"/></svg>`,
+  platform:`<svg viewBox="0 0 24 24" ${S}><path d="M3 17h6M15 13h6"/><circle cx="6" cy="13" r="2.5"/><path d="M6 13V8"/></svg>`,
+  shoot:`<svg viewBox="0 0 24 24" ${S}><path d="M12 3l2 6 6 .5-4.5 4 1.5 6L12 16l-5 3.5 1.5-6L4 9.5 10 9z"/></svg>`,
+  runner:`<svg viewBox="0 0 24 24" ${S}><circle cx="15" cy="5" r="2"/><path d="M13 9l-3 3 2 3 1 5M13 9l4 1M10 12l-4 1"/></svg>`,
+  dodge:`<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="18" r="2.5"/><path d="M5 4l3 3M19 4l-3 3M12 3v3M8 11l-2 2M16 11l2 2"/></svg>`,
+  match:`<svg viewBox="0 0 24 24" ${S}><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><circle cx="12" cy="16" r="3"/></svg>`,
+  physics:`<svg viewBox="0 0 24 24" ${S}><circle cx="8" cy="6" r="2.5"/><path d="M8 8.5V21"/><path d="M8 12l8 4"/><rect x="13" y="14" width="6" height="5" rx="1" transform="rotate(20 16 16)"/></svg>`,
+  word:`<svg viewBox="0 0 24 24" ${S}><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h2l1 6M9 9l-2 6M14 9v6M14 9h3M14 12h3M14 15h3"/></svg>`,
+  logic:`<svg viewBox="0 0 24 24" ${S}><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 17h6"/></svg>`,
+  tower:`<svg viewBox="0 0 24 24" ${S}><path d="M7 21V8l5-4 5 4v13"/><path d="M7 8h10M10 21v-5h4v5"/></svg>`,
+  empire:`<svg viewBox="0 0 24 24" ${S}><path d="M4 20V11l4-3v3l4-3v3l4-3v12z"/><path d="M3 20h18"/></svg>`,
+  cards:`<svg viewBox="0 0 24 24" ${S}><rect x="3" y="6" width="11" height="14" rx="2"/><path d="M10 4l8 2 1.5 12-2 .5"/></svg>`,
+  tactics:`<svg viewBox="0 0 24 24" ${S}><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 14h16M10 4v16M14 4v16"/></svg>`,
+  space:`<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-25 12 12)"/></svg>`,
+  fantasy:`<svg viewBox="0 0 24 24" ${S}><path d="M4 19l4-12 4 6 4-6 4 12z"/><path d="M4 19h16"/></svg>`,
+  neon:`<svg viewBox="0 0 24 24" ${S}><path d="M4 20V9l5-5v16M9 9h6M15 20V4l5 5v11"/></svg>`,
+  candy:`<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="4"/><path d="M16 9l4-3-1 5 1 5-4-3M8 9L4 6l1 5-1 5 4-3"/></svg>`,
+  cozy:`<svg viewBox="0 0 24 24" ${S}><path d="M5 21v-7l7-5 7 5v7"/><path d="M9 21v-5h6v5"/></svg>`,
+  frantic:`<svg viewBox="0 0 24 24" ${S}><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>`,
+  cute:`<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="9"/><path d="M9 14a4 4 0 0 0 6 0"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/></svg>`,
+  tough:`<svg viewBox="0 0 24 24" ${S}><path d="M12 3l8 4v5c0 5-4 8-8 9-4-1-8-4-8-9V7z"/><path d="M12 8v4"/></svg>`,
+  hero:`<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="6" r="3"/><path d="M6 21v-3a6 6 0 0 1 12 0v3"/></svg>`,
+  animal:`<svg viewBox="0 0 24 24" ${S}><path d="M6 4l2 4M18 4l-2 4"/><path d="M7 9a5 5 0 0 1 10 0c0 4-2 7-5 7s-5-3-5-7z"/><circle cx="10" cy="11" r="1"/><circle cx="14" cy="11" r="1"/></svg>`,
+  vehicle:`<svg viewBox="0 0 24 24" ${S}><path d="M5 12l1.5-4.5h11L19 12"/><rect x="3" y="12" width="18" height="5" rx="2"/><circle cx="7.5" cy="17.5" r="1.3"/><circle cx="16.5" cy="17.5" r="1.3"/></svg>`,
+  robot:`<svg viewBox="0 0 24 24" ${S}><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 4h6"/><circle cx="9.5" cy="13" r="1"/><circle cx="14.5" cy="13" r="1"/></svg>`,
+  surprise:`<svg viewBox="0 0 24 24" ${S}><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/><circle cx="15" cy="9" r="1"/><circle cx="9" cy="15" r="1"/><circle cx="12" cy="12" r="1"/></svg>`,
+  arrow:`<svg viewBox="0 0 24 24" ${S}><path d="M15 18l-6-6 6-6"/></svg>`,
+  spark:`<svg viewBox="0 0 24 24" ${S}><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/></svg>`,
+  copy:`<svg viewBox="0 0 24 24" ${S}><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`,
+  rocket:`<svg viewBox="0 0 24 24" ${S}><path d="M12 2c3 3 4 7 4 11l-4 3-4-3c0-4 1-8 4-11z"/><path d="M8 13l-3 3 3 1M16 13l3 3-3 1M12 9v.01"/></svg>`,
+  cube:`<svg viewBox="0 0 24 24" ${S}><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>`,
+  star:`<svg viewBox="0 0 24 24" ${S}><polygon points="12 3 14.6 9 21 9.6 16 14 17.6 20.5 12 17 6.4 20.5 8 14 3 9.6 9.4 9"/></svg>`,
+  house:`<svg viewBox="0 0 24 24" ${S}><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>`,
+  bubble:`<svg viewBox="0 0 24 24" ${S}><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 4v-4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>`,
+  person:`<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>`,
+  mic:`<svg viewBox="0 0 24 24" ${S}><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>`,
+  sparkle:`<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/></svg>`,
+  wand:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20L13.5 10.5"/><path d="M16.5 3.2l1 2.3 2.3 1-2.3 1-1 2.3-1-2.3-2.3-1 2.3-1z" fill="currentColor" stroke="none"/><path d="M19.4 12.6l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" fill="currentColor" stroke="none"/></svg>`
+};
+function svg(n){return ICON[n]||ICON.spark;}
+
+const COL={teal:'#1FD9A0',cyan:'#34C6E0',blue:'#5B8DEF',violet:'#A78BFA',pink:'#F472B6',red:'#FB6B5B',amber:'#FBBF4A',lime:'#9ED54B'};
+
+const GENRES=[
+  {id:'action',label:'Action',desc:'Fast moves, reflexes & arcade thrills',icon:'action',motif:'pulse',c:'teal'},
+  {id:'puzzle',label:'Puzzle',desc:'Think, match & solve at your own pace',icon:'puzzle',motif:'gridpop',c:'blue'},
+  {id:'strategy',label:'Strategy',desc:'Plan, build & outsmart your way to a win',icon:'strategy',motif:'rise',c:'amber'}
+];
+const SUB={
+  action:[
+    {id:'platformer',label:'Jump & Run',icon:'platform',frag:'platformer',motif:'scroll',c:'teal'},
+    {id:'shooter',label:'Blast & Shoot',icon:'shoot',frag:'shoot-em-up',motif:'beam',c:'cyan'},
+    {id:'runner',label:'Endless Runner',icon:'runner',frag:'endless runner',motif:'scroll',c:'lime'},
+    {id:'dodge',label:'Dodge & Survive',icon:'dodge',frag:'dodging arcade game',motif:'rain',c:'pink'}
+  ],
+  puzzle:[
+    {id:'match',label:'Match & Pop',icon:'match',frag:'match-three puzzle',motif:'gridpop',c:'pink'},
+    {id:'physics',label:'Physics Fun',icon:'physics',frag:'physics puzzle',motif:'rain',c:'cyan'},
+    {id:'word',label:'Word Game',icon:'word',frag:'word puzzle',motif:'gridpop',c:'amber'},
+    {id:'logic',label:'Brain Teaser',icon:'logic',frag:'logic puzzle',motif:'gridpop',c:'violet'}
+  ],
+  strategy:[
+    {id:'tower',label:'Tower Defense',icon:'tower',frag:'tower defense',motif:'rise',c:'teal'},
+    {id:'empire',label:'Tiny Empire',icon:'empire',frag:'base-building strategy',motif:'rise',c:'lime'},
+    {id:'cards',label:'Card Battler',icon:'cards',frag:'card battler',motif:'bounce',c:'violet'},
+    {id:'tactics',label:'Grid Tactics',icon:'tactics',frag:'turn-based tactics',motif:'gridpop',c:'blue'}
+  ]
+};
+const THEMES=[
+  {id:'space',label:'Outer Space',icon:'space',frag:'deep outer space among the stars',motif:'orbit',c:'cyan'},
+  {id:'fantasy',label:'Fantasy',icon:'fantasy',frag:'a magical fantasy kingdom',motif:'orbit',c:'violet'},
+  {id:'neon',label:'Neon City',icon:'neon',frag:'a glowing neon-lit future city',motif:'beam',c:'pink'},
+  {id:'candy',label:'Candy Land',icon:'candy',frag:'a sweet candy land',motif:'bounce',c:'amber'}
+];
+const VIBES=[
+  {id:'cozy',label:'Chill & Cozy',icon:'cozy',frag:'relaxing and cozy',motif:'orbit',c:'teal'},
+  {id:'frantic',label:'Fast & Frantic',icon:'frantic',frag:'fast-paced and frantic',motif:'pulse',c:'red'},
+  {id:'cute',label:'Cute & Charming',icon:'cute',frag:'cute and charming',motif:'bounce',c:'pink'},
+  {id:'tough',label:'Tough & Tricky',icon:'tough',frag:'challenging and skill-testing',motif:'pulse',c:'amber'}
+];
+const CHARS=[
+  {id:'hero',label:'Brave Hero',icon:'hero',frag:'a brave hero',motif:'bounce',c:'teal'},
+  {id:'animal',label:'Cute Animal',icon:'animal',frag:'a cute animal',motif:'bounce',c:'lime'},
+  {id:'vehicle',label:'Speedy Vehicle',icon:'vehicle',frag:'a speedy vehicle',motif:'scroll',c:'cyan'},
+  {id:'robot',label:'Friendly Robot',icon:'robot',frag:'a friendly robot',motif:'pulse',c:'violet'}
+];
+const TWIST_CHIPS=['It gets faster every level','Everything is upside down','You collect cute pets','One tap controls everything','No twist — keep it simple'];
+
+/* ---------- animated scene builder ---------- */
+function rnd(a,b){return Math.random()*(b-a)+a;}
+function scene(motif,colKey,wide){
+  const c=COL[colKey]||COL.teal; let inner='';
+  if(motif==='orbit'){
+    const n=wide?16:13;
+    for(let i=0;i<n;i++) inner+=`<i style="left:${rnd(4,94)|0}%;top:${rnd(6,84)|0}%;width:${rnd(3,8)|0}px;height:${rnd(3,8)|0}px;--del:${rnd(0,3).toFixed(2)}s;--dur:${rnd(2.4,4.5).toFixed(2)}s"></i>`;
+    return `<div class="sc orbit" style="color:${c}">${inner}</div>`;
+  }
+  if(motif==='scroll'){
+    const n=wide?12:7, gap=wide?9:15;
+    for(let i=0;i<n;i++) inner+=`<u style="left:${i*gap}%;--del:${(i*0.1).toFixed(2)}s"></u>`;
+    return `<div class="sc scroll" style="color:${c}">${inner}<span class="grnd"></span><b class="hop"></b></div>`;
+  }
+  if(motif==='rain'){
+    const n=wide?15:10;
+    for(let i=0;i<n;i++) inner+=`<i style="left:${rnd(5,93)|0}%;--del:${rnd(0,2).toFixed(2)}s;--dur:${rnd(1.3,2.4).toFixed(2)}s"></i>`;
+    return `<div class="sc rain" style="color:${c}">${inner}<b class="catch"></b></div>`;
+  }
+  if(motif==='gridpop'){
+    const n=wide?18:9;
+    for(let i=0;i<n;i++) inner+=`<i style="--del:${rnd(0,1.8).toFixed(2)}s"></i>`;
+    return `<div class="sc"><div class="gridpop${wide?' wide':''}" style="color:${c}">${inner}</div></div>`;
+  }
+  if(motif==='rise'){
+    const n=wide?11:6, gap=wide?8.4:15, x0=wide?4:9;
+    for(let i=0;i<n;i++) inner+=`<i style="left:${(x0+i*gap).toFixed(1)}%;--del:${(i*0.11).toFixed(2)}s;--h:${rnd(46,94)|0}%"></i>`;
+    return `<div class="sc rise" style="color:${c}">${inner}</div>`;
+  }
+  if(motif==='bounce'){
+    const pos = wide ? [22,44,66,80] : [36,58];
+    let s='';
+    pos.forEach((p,i)=>{ s+=`<span class="sh" style="left:${p-2}%"></span><b style="left:${p}%;--del:${(i*.22).toFixed(2)}s"></b>`; });
+    return `<div class="sc bounce" style="color:${c}">${s}</div>`;
+  }
+  if(motif==='beam'){
+    const n=wide?7:5;
+    for(let i=0;i<n;i++) inner+=`<u style="top:${6+i*(wide?13:18)}%;--del:${(i*0.3).toFixed(2)}s"></u>`;
+    return `<div class="sc beam" style="color:${c}">${inner}</div>`;
+  }
+  if(motif==='pulse'){
+    return `<div class="sc pulse" style="color:${c}"><div class="pc"><u style="--del:0s"></u><u style="--del:.63s"></u><u style="--del:1.26s"></u><b></b></div></div>`;
+  }
+  return `<div class="sc" style="color:${c}"></div>`;
+}
+/* magic-wand + animated sparkles, for the surprise tile */
+function wandScene(){
+  const cols=['#ffffff','#FFE9A8','#BFFCEC','#ffffff','#FFD66E','#ffffff','#CFEFE5','#ffffff'];
+  let spk='';
+  for(let i=0;i<10;i++){
+    const col=cols[i%cols.length];
+    const sz=(rnd(8,17)|0);
+    spk+=`<span class="spk" style="left:${rnd(6,72)|0}%;top:${rnd(10,80)|0}%;color:${col};--del:${rnd(0,2.4).toFixed(2)}s;--dur:${rnd(1.4,2.6).toFixed(2)}s"><svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6z"/></svg></span>`;
+  }
+  return `<div class="wand">${spk}<span class="wico">${svg('wand')}</span></div>`;
+}
+
+/* ---------- flow ---------- */
+let MODE='ftue';
+function STEPS(){return MODE==='full'
+  ? ['welcome','genre','subgenre','theme','vibe','character','twist','result']
+  : ['welcome','genre','subgenre','theme','vibe','character','result'];}
+function ORDER(){return MODE==='full'
+  ? ['genre','subgenre','theme','vibe','character','twist']
+  : ['genre','subgenre','theme','vibe','character'];}
+const NAMES={genre:'Pick a type',subgenre:'Pick a style',theme:'Pick a world',vibe:'Pick a vibe',character:'Pick a star',twist:'Add a twist'};
+let step=0;
+const state={genre:null,subgenre:null,theme:null,vibe:null,character:null,twist:''};
+
+const topbar=document.getElementById('topbar');
+const main=document.getElementById('main');
+const navEl=document.getElementById('nav');
+
+function renderTop(){
+  const cur=STEPS()[step];
+  const order=ORDER();
+  let back = (cur==='welcome') ? '' : `<button class="back" id="backBtn">${svg('arrow')}</button>`;
+  topbar.innerHTML=`
+    <div class="tb-row">
+      <div class="logo">${svg('rocket')}</div>
+      <div class="brand"><h1>Arcade Maker</h1><p>No skills needed · just tap</p></div>
+      ${back}
+    </div>
+    <div class="progress">${order.map(k=>{
+      const ci=order.indexOf(cur);let cls='';
+      if(cur==='result')cls='done';else if(order.indexOf(k)<ci)cls='done';else if(k===cur)cls='active';
+      return `<div class="seg ${cls}"><b></b></div>`;
+    }).join('')}</div>
+    <div class="steplabel">${cur==='welcome'?'Welcome':cur==='result'?'Ready to build':'Step '+(order.indexOf(cur)+1)+' of '+order.length+' · '+NAMES[cur]}</div>`;
+  const bb=document.getElementById('backBtn'); if(bb) bb.onclick=prev;
+}
+
+function tileGrid(items,onPick,selId,vertical){
+  const g=document.createElement('div');
+  g.className='grid'+(vertical?' vert':'');
+  items.forEach((it,i)=>{
+    const b=document.createElement('button');
+    b.className='tile'+(vertical?' row':'')+(selId===it.id?' selected':'');
+    b.style.animationDelay=(i*55)+'ms';
+    const descHtml = it.desc?`<span>${it.desc}</span>`:'';
+    b.innerHTML=`${scene(it.motif,it.c,vertical)}<div class="cap"><span class="ti">${svg(it.icon)}</span><div class="txt"><h3>${it.label}</h3>${descHtml}</div></div>`;
+    b.onclick=()=>onPick(it);
+    g.appendChild(b);
+  });
+  return g;
+}
+function head(kick,q){return `<div class="qrow"><div class="qkick">${kick}</div><div class="q">${q}</div></div>`;}
+
+function render(){
+  renderTop();
+  const cur=STEPS()[step];
+  main.innerHTML='';
+  main.scrollTop=0;
+  const w=document.createElement('div'); w.className='screen-in';
+
+  if(cur==='welcome'){
+    w.innerHTML=`<div class="welcome">
+      <div class="mascot">${svg('rocket')}</div>
+      <div class="big">Let's make<br>a game.</div>
+      <p>A few quick taps and we'll get your game ready to play. No experience needed.</p>
+      <button class="cta" id="startBtn">${svg('rocket')} Start building</button>
+    </div>`;
+    main.appendChild(w);
+    document.getElementById('startBtn').onclick=()=>{step=1;render();};
+    renderNav(); return;
+  }
+
+  if(cur==='genre'){
+    w.className='screen-in genre-screen';
+    w.innerHTML=head('Where to begin','What kind of game<br>do you feel like?');
+    const mid=document.createElement('div'); mid.className='genre-mid';
+    mid.appendChild(tileGrid(GENRES,it=>{state.genre=it;state.subgenre=null;next();}, state.genre&&state.genre.id, true));
+    const sp=document.createElement('button'); sp.className='surprise-tile';
+    sp.innerHTML=`${wandScene()}<div class="scap"><h3>Surprise me</h3><span>Let us pick everything for you ✦</span></div>`;
+    sp.onclick=rollRandom;
+    mid.appendChild(sp);
+    w.appendChild(mid);
+  }
+  else if(cur==='subgenre'){
+    w.innerHTML=head(state.genre.label,'Pick the style<br>that sounds fun.');
+    w.appendChild(tileGrid(SUB[state.genre.id],it=>{state.subgenre=it;next();}, state.subgenre&&state.subgenre.id));
+  }
+  else if(cur==='theme'){
+    w.innerHTML=head('The setting','Where does it<br>take place?');
+    w.appendChild(tileGrid(THEMES,it=>{state.theme=it;next();}, state.theme&&state.theme.id));
+  }
+  else if(cur==='vibe'){
+    w.innerHTML=head('The feeling','How should it<br>feel to play?');
+    w.appendChild(tileGrid(VIBES,it=>{state.vibe=it;next();}, state.vibe&&state.vibe.id));
+  }
+  else if(cur==='character'){
+    w.innerHTML=head('The star','Who do you<br>play as?');
+    w.appendChild(tileGrid(CHARS,it=>{state.character=it;next();}, state.character&&state.character.id));
+  }
+  else if(cur==='twist'){
+    w.innerHTML=head('Optional','Want to add<br>a twist?');
+    const box=document.createElement('div'); box.className='twistbox';
+    box.innerHTML=`<div class="hint">Tap an idea, type your own, or skip.</div>
+      <div class="chips">${TWIST_CHIPS.map(c=>`<div class="chip" data-v="${c}">${c}</div>`).join('')}</div>
+      <textarea id="twist" placeholder="e.g. the floor is lava..."></textarea>
+      <button class="cta" id="goReview">${svg('spark')} See my game</button>`;
+    w.appendChild(box); main.appendChild(w);
+    const ta=box.querySelector('#twist'); ta.value=state.twist;
+    box.querySelectorAll('.chip').forEach(ch=>{
+      if(ch.dataset.v===state.twist) ch.classList.add('on');
+      ch.onclick=()=>{box.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));ch.classList.add('on');
+        ta.value=ch.dataset.v==='No twist — keep it simple'?'':ch.dataset.v;state.twist=ta.value;};
+    });
+    ta.oninput=()=>{state.twist=ta.value;box.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));};
+    box.querySelector('#goReview').onclick=()=>{state.twist=ta.value.trim();next();};
+    renderNav(); return;
+  }
+  else if(cur==='result'){
+    if(MODE==='ftue'){
+      w.innerHTML=head('All done!','Here\'s your game');
+      const cats=['Style','World','Vibe','Star'];
+      const items=[state.subgenre,state.theme,state.vibe,state.character];
+      w.appendChild(recapGrid(items,cats));
+      const make=mkCta('rocket','Create my game',()=>toast('Building your game ✦'));
+      const over=mkGhost('Start over',resetAll);
+      w.appendChild(make); w.appendChild(over);
+      main.appendChild(w); renderNav(); return;
+    }
+    // full version
+    const summary=buildSummary();
+    w.innerHTML=`${head('All set','Here\'s your game')}
+      <div class="tags">
+        ${tag(state.genre)} ${tag(state.subgenre)} ${tag(state.theme)} ${tag(state.vibe)} ${tag(state.character)}
+      </div>
+      <div class="promptfield">
+        <div class="pf-top">
+          <span class="autochip">${svg('sparkle')} Your game</span>
+          <button class="copybtn" id="copyBtn">${svg('copy')} Copy</button>
+        </div>
+        <div class="pf-text">${buildSummaryHTML()}</div>
+      </div>
+      <button class="cta" id="makeBtn">${svg('rocket')} Create my game</button>
+      <button class="ghostlink" id="overBtn">Start over</button>`;
+    main.appendChild(w);
+    document.getElementById('copyBtn').onclick=()=>{(navigator.clipboard?navigator.clipboard.writeText(summary):Promise.reject()).then(()=>toast('Copied ✦')).catch(()=>{fallback(summary);toast('Copied ✦');});};
+    document.getElementById('makeBtn').onclick=()=>toast('Building your game ✦');
+    document.getElementById('overBtn').onclick=resetAll;
+    renderNav(); return;
+  }
+
+  main.appendChild(w);
+  renderNav();
+}
+
+function recapGrid(items,cats){
+  const g=document.createElement('div'); g.className='grid';
+  items.forEach((it,i)=>{
+    const d=document.createElement('div');
+    d.className='tile recap'; d.style.animationDelay=(i*60)+'ms';
+    d.innerHTML=`${scene(it.motif,it.c)}<span class="rtag">${cats[i]}</span><div class="cap"><span class="ti">${svg(it.icon)}</span><div class="txt"><h3>${it.label}</h3></div></div>`;
+    g.appendChild(d);
+  });
+  return g;
+}
+function mkCta(icon,label,fn){const b=document.createElement('button');b.className='cta';b.innerHTML=`${svg(icon)} ${label}`;b.onclick=fn;return b;}
+function mkGhost(label,fn){const b=document.createElement('button');b.className='ghostlink';b.textContent=label;b.onclick=fn;return b;}
+
+function tag(o){return `<span class="tag">${svg(o.icon)}${o.label}</span>`;}
+
+function renderNav(){
+  const items=[
+    {id:'create',label:'create',icon:'cube'},
+    {id:'library',label:'library',icon:'star'},
+    {id:'home',label:'',icon:'house',home:true},
+    {id:'feedback',label:'feedback',icon:'bubble'},
+    {id:'profile',label:'profile',icon:'person'}
+  ];
+  navEl.innerHTML=items.map(it=>{
+    if(it.home) return `<button class="ni home" data-go="home"><span class="hc">${svg('house')}</span></button>`;
+    const active = it.id==='create' ? ' active':'';
+    return `<button class="ni${active}" data-go="${it.id}">${svg(it.icon)}<span>${it.label}</span></button>`;
+  }).join('');
+  navEl.querySelectorAll('.ni').forEach(b=>{
+    b.onclick=()=>{
+      const g=b.dataset.go;
+      if(g==='create'){ step=1; render(); }
+      else if(g==='home'){ step=0; render(); }
+      else toast(g.charAt(0).toUpperCase()+g.slice(1)+' · coming soon');
+    };
+  });
+}
+
+function next(){step++;render();}
+function prev(){if(step>0)step--;render();}
+function resetAll(){Object.keys(state).forEach(k=>state[k]=k==='twist'?'':null);step=0;render();}
+function rollRandom(){
+  state.genre=rand(GENRES);state.subgenre=rand(SUB[state.genre.id]);
+  state.theme=rand(THEMES);state.vibe=rand(VIBES);state.character=rand(CHARS);
+  state.twist=rand(['',TWIST_CHIPS[0],TWIST_CHIPS[2]]);
+  step=STEPS().indexOf('result');render();
+}
+function rand(a){return a[Math.floor(Math.random()*a.length)];}
+
+function buildSummary(){
+  let t=state.twist&&state.twist!=='No twist — keep it simple'?` Special twist: ${state.twist.toLowerCase().replace(/\.$/,'')}.`:'';
+  return `A ${state.vibe.frag} ${state.subgenre.frag} set in ${state.theme.frag}, where you play as ${state.character.frag}.${t} Built for mobile with simple one-thumb controls and satisfying, juicy feedback.`;
+}
+function buildSummaryHTML(){
+  let t=state.twist&&state.twist!=='No twist — keep it simple'?` Special twist: <b>${esc(state.twist.toLowerCase().replace(/\.$/,''))}</b>.`:'';
+  return `A <b>${state.vibe.frag}</b> <b>${state.subgenre.frag}</b> set in <b>${state.theme.frag}</b>, where you play as <b>${state.character.frag}</b>.${t} Built for mobile with simple one-thumb controls and satisfying, juicy feedback.`;
+}
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+let tt;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),1700);}
+function fallback(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);}
+
+document.querySelectorAll('.vbtn').forEach(b=>{
+  b.onclick=()=>{ if(b.dataset.mode===MODE) return; MODE=b.dataset.mode;
+    document.querySelectorAll('.vbtn').forEach(x=>x.classList.toggle('active',x===b));
+    resetAll();
+  };
+});
+
+render();
+</script>
+</body>
+</html>
