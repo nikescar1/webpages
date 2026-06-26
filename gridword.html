@@ -2991,10 +2991,15 @@ function newGame(opts) {
   gridEl.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
   gridEl.style.gridTemplateRows = `repeat(${GRID_SIZE}, 1fr)`;
 
-  let rng = null;
+  // Daily mode uses a date-seeded PRNG so the board is identical for everyone.
+  // Free play has no seed, so fall back to Math.random — generateGrid and
+  // plantWord call rng() directly and would throw on a null.
+  let rng;
   if (MODE === 'daily') {
     const seed = dailySeed(DAILY_DATE, DIFFICULTY);
     rng = mulberry32(seed);
+  } else {
+    rng = Math.random;
   }
   grid = generateGrid(GRID_SIZE, rng, MODE === 'daily' ? DIFFICULTY : null);
 
