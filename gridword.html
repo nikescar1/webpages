@@ -1366,6 +1366,37 @@
   }
 
   /* Found words */
+  .found-sort {
+    width: 100%; max-width: 480px;
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0;
+    padding: 2px 2px 0;
+  }
+  .found-sort-label {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800; font-size: 11px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--ink); opacity: 0.55;
+    margin-right: 2px;
+  }
+  .sort-btn {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800; font-size: 12px;
+    padding: 3px 12px;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+  }
+  .sort-btn:active { transform: scale(0.94); }
+  .sort-btn.active {
+    background: var(--ink);
+    color: var(--bg);
+  }
+
   .found-words-list {
     width: 100%; max-width: 480px;
     flex: 1; min-height: 0;
@@ -1900,6 +1931,12 @@
       <button class="btn btn-reset" id="freshBoardBtn" style="display:none">Restart</button>
       <button class="btn btn-submit" id="submitBtn">Submit</button>
     </div>
+  </div>
+
+  <div class="found-sort" id="foundSort" style="display:none">
+    <span class="found-sort-label">Sort</span>
+    <button class="sort-btn active" data-sort="recent">Recent</button>
+    <button class="sort-btn" data-sort="value">Value</button>
   </div>
 
   <div class="found-words-list" id="foundList"></div>
@@ -2939,6 +2976,8 @@ let foundWords = [];
 let foundSet = new Set();
 let wordCounts = new Map();
 let wordPaths = new Map(); // word -> Set of canonical path strings (e.g. "3,11,12")
+let foundSort = 'recent';  // how the found-words list is ordered: 'recent' | 'value'
+let foundSeq = 0;          // monotonic counter stamped on each tag for recency
 let totalScore = 0;
 let displayedScore = 0;        // for count-up animation
 let scoreAnimRaf = null;
@@ -3008,6 +3047,7 @@ function newGame(opts) {
   foundSet.clear();
   wordCounts = new Map();
   wordPaths = new Map();
+  foundSeq = 0;
   totalScore = 0;
   displayedScore = 0;
   isDragging = false;
@@ -3069,6 +3109,7 @@ function newGame(opts) {
   wordsFoundEl.textContent = `${foundWords.length} word${foundWords.length !== 1 ? 's' : ''} found`;
   foundListEl.innerHTML = '';
   for (const w of foundWords) addFoundTag(w);
+  updateSortVisibility();
   // Reflect any restored cellScores in the cell visuals.
   for (let i = 0; i < CELL_COUNT; i++) {
     if (cellScores[i] > 0) updateCellDisplay(i);
@@ -3837,32 +3878,70 @@ function addFoundTag(word) {
   tag.className = 'found-tag';
   tag.setAttribute('data-len', String(word.length));
   tag.dataset.word = word;
+  tag.dataset.seq = String(++foundSeq);
   renderFoundTagContent(tag, word);
-  foundListEl.prepend(tag);
-  foundListEl.scrollTop = 0;
+  foundListEl.appendChild(tag);
+  sortFoundList();
+  if (foundSort === 'recent') foundListEl.scrollTop = 0;
+  updateSortVisibility();
 }
 
 function bumpFoundTag(word) {
   const tag = foundListEl.querySelector(`.found-tag[data-word="${word}"]`);
   if (!tag) { addFoundTag(word); return; }
+  tag.dataset.seq = String(++foundSeq);   // re-use counts as recent activity
   renderFoundTagContent(tag, word);
   // Re-trigger the pop animation
   tag.classList.remove('tag-bump');
   void tag.offsetWidth;
   tag.classList.add('tag-bump');
-  // Move to front so the most recently used word is visible
-  foundListEl.prepend(tag);
-  foundListEl.scrollTop = 0;
+  sortFoundList();
+  if (foundSort === 'recent') foundListEl.scrollTop = 0;
 }
 
 function renderFoundTagContent(tag, word) {
   const count = wordCounts.get(word) || 1;
+  tag.dataset.count = String(count);
   if (count > 1) {
     tag.innerHTML = `${word}<span class="tag-mult">×${count}</span>`;
   } else {
     tag.textContent = word;
   }
 }
+
+// Order the found-word tags in place (appendChild keeps the live elements, so
+// their pop/bump animations are preserved). Recent = newest activity first;
+// Value = longest word first (then most-used, then most recent).
+function sortFoundList() {
+  const tags = [...foundListEl.children];
+  tags.sort((a, b) => {
+    if (foundSort === 'value') {
+      const byLen = (+b.dataset.len) - (+a.dataset.len);
+      if (byLen) return byLen;
+      const byCount = (+b.dataset.count || 1) - (+a.dataset.count || 1);
+      if (byCount) return byCount;
+    }
+    return (+b.dataset.seq) - (+a.dataset.seq);
+  });
+  for (const t of tags) foundListEl.appendChild(t);
+}
+
+function updateSortVisibility() {
+  document.getElementById('foundSort').style.display = foundWords.length ? '' : 'none';
+}
+
+document.getElementById('foundSort').addEventListener('click', e => {
+  const btn = e.target.closest('.sort-btn');
+  if (!btn) return;
+  const mode = btn.dataset.sort;
+  if (mode === foundSort) return;
+  foundSort = mode;
+  for (const b of document.querySelectorAll('#foundSort .sort-btn')) {
+    b.classList.toggle('active', b.dataset.sort === foundSort);
+  }
+  sortFoundList();
+  foundListEl.scrollTop = 0;
+});
 
 // ══════════════════════════════════════════════════════════════
 // SUBMIT BOARD
