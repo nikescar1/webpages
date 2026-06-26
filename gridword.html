@@ -3561,25 +3561,35 @@ rotateLeftBtn.addEventListener('click', () => rotateBoard(-1));
 rotateRightBtn.addEventListener('click', () => rotateBoard(1));
 
 /* ---------------------------------------------------------------------------
-   Press-and-hold magnifier lens. Holding still for HOLD_MS pops a circular
-   zoomed view of the tile under the finger plus its neighbours. It then tracks
-   the finger (pointer-events: none, so dragging continues underneath).
+   Magnifier lens. Any time the finger comes to a stop for HOLD_MS (during a
+   drag), a circular zoomed view of the tile under the finger plus its
+   neighbours pops up. Moving far/fast enough dismisses it — and it pops again
+   the next time the finger settles, repeatedly through the whole drag.
+   pointer-events: none, so dragging continues underneath.
 --------------------------------------------------------------------------- */
 const LENS_SIZE = 168;
 const LENS_FRAME_TILES = 2.8;   // ~tile + adjacent tiles framed across the lens
-const HOLD_MS = 350;
-const HOLD_MOVE_TOL = 12;
+const HOLD_MS = 350;            // how long the finger must be still to pop the lens
+const STILL_TOL = 8;            // movement within this radius still counts as "stopped"
 const LENS_DISMISS_DIST = 26;   // px from where the lens appeared -> dismiss
 const LENS_DISMISS_SPEED = 14;  // px in a single move event (a flick) -> dismiss
 const lensEl = document.getElementById('magnifier');
 const lensInner = document.getElementById('magnifierInner');
 let holdTimer = null;
-let holdStartX = 0, holdStartY = 0;
+let holdStartX = 0, holdStartY = 0;      // anchor for the stillness countdown
 let lensActive = false;
 let lensAnchorX = 0, lensAnchorY = 0;   // where the lens popped up
 let lensLastX = 0, lensLastY = 0;        // previous move position (for speed)
 
 function clearHoldTimer() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+
+// (Re)start the "finger has stopped" countdown from (x, y). If the finger
+// stays within STILL_TOL of this point for HOLD_MS, the lens pops up.
+function armStillTimer(x, y) {
+  clearHoldTimer();
+  holdStartX = x; holdStartY = y;
+  holdTimer = setTimeout(() => { if (isDragging) showLens(pointerX, pointerY); }, HOLD_MS);
+}
 
 function rebuildLensContent() {
   const gr = gridEl.getBoundingClientRect();
@@ -3610,8 +3620,9 @@ function updateLens(x, y) {
 }
 
 function showLens(x, y) {
+  clearHoldTimer();
   if (!gridRect) return;
-  // Only pop the lens when the hold landed on the board.
+  // Only pop the lens when the finger stopped over the board.
   if (x < gridRect.left || x > gridRect.right || y < gridRect.top || y > gridRect.bottom) return;
   lensActive = true;
   lensAnchorX = x; lensAnchorY = y;
@@ -3636,26 +3647,27 @@ gridWrap.addEventListener('pointerdown', e => {
   gridWrap.setPointerCapture(e.pointerId);
   cacheCellPositions();
   pointerX = e.clientX; pointerY = e.clientY;
-  holdStartX = e.clientX; holdStartY = e.clientY;
-  clearHoldTimer();
-  holdTimer = setTimeout(() => showLens(pointerX, pointerY), HOLD_MS);
+  armStillTimer(e.clientX, e.clientY);
   startDrag(getCellFromPoint(e.clientX, e.clientY));
 });
 gridWrap.addEventListener('pointermove', e => {
   const x = e.clientX, y = e.clientY;
   if (lensActive) {
-    // Dismiss the lens once the finger moves far enough, or flicks fast enough,
-    // so it gets out of the way as soon as you start dragging.
+    // Dismiss once the finger moves far enough, or flicks fast enough — then
+    // re-arm so the lens pops again the next time the finger settles.
     const step = Math.hypot(x - lensLastX, y - lensLastY);
     const fromAnchor = Math.hypot(x - lensAnchorX, y - lensAnchorY);
     if (step > LENS_DISMISS_SPEED || fromAnchor > LENS_DISMISS_DIST) {
       hideLens();
+      armStillTimer(x, y);
     } else {
       updateLens(x, y);
       lensLastX = x; lensLastY = y;
     }
-  } else if (holdTimer) {
-    if (Math.hypot(x - holdStartX, y - holdStartY) > HOLD_MOVE_TOL) clearHoldTimer();
+  } else if (Math.hypot(x - holdStartX, y - holdStartY) > STILL_TOL) {
+    // Finger is still moving — restart the stillness countdown from here so the
+    // lens only pops once it actually comes to rest.
+    armStillTimer(x, y);
   }
   pointerX = x; pointerY = y;
   if (!isDragging) return;
