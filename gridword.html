@@ -1055,6 +1055,9 @@
     width: 100%; max-width: 480px;
     aspect-ratio: 1; flex-shrink: 0;
     padding: 6px;
+    /* Room below the board for the rotate buttons so they never overlap the
+       corner tiles. */
+    margin-bottom: 56px;
   }
   .grid-wrap.shake { animation: gridShake 0.35s; }
   .grid-wrap.shake-big { animation: gridShakeBig 0.55s; }
@@ -1076,6 +1079,13 @@
     display: grid;
     gap: 4px;
     width: 100%; height: 100%;
+    /* Sits above the connecting trail (z-index 1) so the line is drawn
+       *under* the tiles. Rotation is driven by --board-rot (see rotate btns). */
+    position: relative;
+    z-index: 2;
+    transform: rotate(var(--board-rot, 0deg));
+    transform-origin: center center;
+    transition: transform 0.6s cubic-bezier(0.34, 1.32, 0.5, 1);
   }
 
   .cell {
@@ -1094,7 +1104,10 @@
     font-weight: 900;
     font-size: clamp(15px, 4.4vw, 26px);
     line-height: 1; color: var(--ink);
-    transition: color 0.18s, transform 0.12s;
+    /* Counter-rotate against the board so letters stay upright when the
+       board spins. Timing matches .grid's rotation. */
+    transform: rotate(var(--letter-rot, 0deg));
+    transition: color 0.18s, transform 0.6s cubic-bezier(0.34, 1.32, 0.5, 1);
     pointer-events: none;
   }
 
@@ -1106,7 +1119,8 @@
     position: absolute;
     bottom: 1px; right: 4px;
     color: var(--ink); opacity: 0;
-    transition: opacity 0.2s;
+    transform: rotate(var(--letter-rot, 0deg));
+    transition: opacity 0.2s, transform 0.6s cubic-bezier(0.34, 1.32, 0.5, 1);
     pointer-events: none;
   }
   .cell.has-score .pts { opacity: 0.6; }
@@ -1147,11 +1161,13 @@
     transform: scale(1.12);
     box-shadow: 4px 4px 0 0 var(--shadow-color);
     z-index: 3;
-    background: #D8D8D8 !important;
+    /* Translucent so the connecting trail underneath glows through without
+       covering the letter. */
+    background: rgba(216, 216, 216, 0.72) !important;
   }
   .cell.in-path .letter {
     color: var(--ink) !important;
-    transform: scale(1.05);
+    transform: rotate(var(--letter-rot, 0deg)) scale(1.05);
   }
   .cell.in-path::before {
     content: '';
@@ -1226,14 +1242,14 @@
   .trail-svg {
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%;
-    pointer-events: none; z-index: 5;
+    pointer-events: none; z-index: 1;
   }
   .trail-line {
     stroke-width: 8;
     stroke-linecap: round;
     stroke-linejoin: round;
     fill: none;
-    opacity: 0.85;
+    opacity: 0.9;
   }
   .trail-line-bg {
     stroke: var(--ink);
@@ -1245,6 +1261,71 @@
   .trail-live {
     stroke-dasharray: 6 8;
     opacity: 0.6;
+  }
+
+  /* Board-rotation buttons — sit just outside the lower-left / lower-right
+     corner tiles of the board. */
+  .rotate-btn {
+    position: absolute;
+    bottom: -52px;
+    width: 44px; height: 44px;
+    z-index: 12;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    border: 2.5px solid var(--ink);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow-color);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.12s, box-shadow 0.12s, background 0.15s;
+  }
+  .rotate-btn:hover { background: #ece8f5; }
+  .rotate-btn:active {
+    transform: translate(2px, 2px) scale(0.94);
+    box-shadow: 0 0 0 0 var(--shadow-color);
+  }
+  .rotate-btn svg { width: 26px; height: 26px; display: block; }
+  .rotate-btn.spin svg { animation: rotBtnSpin 0.6s cubic-bezier(0.34, 1.32, 0.5, 1); }
+  @keyframes rotBtnSpin {
+    from { transform: rotate(0); }
+    to { transform: rotate(var(--btn-spin, 90deg)); }
+  }
+  .rotate-left { left: 0; }
+  .rotate-right { right: 0; }
+
+  /* Press-and-hold magnifier lens. */
+  .lens {
+    position: fixed;
+    width: 168px; height: 168px;
+    border-radius: 50%;
+    border: 4px solid var(--ink);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4), inset 0 0 0 2px rgba(255,255,255,0.5);
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 9999;
+    background: var(--bg, #fff);
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.14s ease, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: none;
+  }
+  .lens.show { display: block; opacity: 1; transform: scale(1); }
+  .lens-inner { position: absolute; top: 0; left: 0; transform-origin: top left; }
+  /* The lens is a static magnified snapshot — kill all animations/transitions
+     in the clone so found/scored tiles don't replay their flip or bump. */
+  .lens-inner, .lens-inner * { animation: none !important; transition: none !important; }
+  /* Crosshair ring marking the focused tile inside the lens. */
+  .lens::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 54px; height: 54px;
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(42, 30, 63, 0.5);
+    border-radius: 10px;
+    pointer-events: none;
   }
 
   /* Info bar */
@@ -1796,7 +1877,21 @@
     <svg class="trail-svg" id="trailSvg"></svg>
     <svg class="trail-svg" id="hitboxSvg" style="z-index: 6; display: none;"></svg>
     <div class="grid" id="grid"></div>
+    <button class="rotate-btn rotate-left" id="rotateLeft" aria-label="Rotate board counter-clockwise" title="Rotate left">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    </button>
+    <button class="rotate-btn rotate-right" id="rotateRight" aria-label="Rotate board clockwise" title="Rotate right">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+        <path d="M21 3v5h-5"/>
+      </svg>
+    </button>
   </div>
+
+  <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
 
   <div class="info-bar">
     <span class="words-found" id="wordsFound">0 words found</span>
@@ -3304,6 +3399,8 @@ function highlightPath() {
   for (let i = 0; i < CELL_COUNT; i++) getCellEl(i).classList.remove('in-path');
   for (const idx of path) getCellEl(idx).classList.add('in-path');
   drawTrail();
+  // Keep the magnifier's cloned board in sync with the live selection.
+  if (lensActive) rebuildLensContent();
 }
 
 function updateWordBar() {
@@ -3432,22 +3529,140 @@ sizeOptions.addEventListener('click', e => {
   newGame();
 });
 
+/* ---------------------------------------------------------------------------
+   Board rotation. Purely visual — the grid array and all index/adjacency math
+   stay put; we just spin #grid and counter-spin the letters so they stay
+   upright. cacheCellPositions() re-reads the live geometry on the next
+   pointerdown, so hit detection keeps working in any orientation.
+--------------------------------------------------------------------------- */
+let boardRotation = 0;
+function rotateBoard(dir) {
+  if (isDragging) return;
+  // Accumulate without wrapping so the animation always turns exactly 90° in
+  // the pressed direction (wrapping to 0 would spin 270° backwards).
+  boardRotation += dir * 90;
+  gridEl.style.setProperty('--board-rot', boardRotation + 'deg');
+  gridEl.style.setProperty('--letter-rot', (-boardRotation) + 'deg');
+  haptic(12);
+  const btn = dir < 0 ? rotateLeftBtn : rotateRightBtn;
+  btn.style.setProperty('--btn-spin', (dir * 90) + 'deg');
+  btn.classList.remove('spin'); void btn.offsetWidth; btn.classList.add('spin');
+  // Re-cache geometry once the spin settles so the next drag is accurate.
+  setTimeout(() => { if (!isDragging) cacheCellPositions(); }, 650);
+}
+const rotateLeftBtn = document.getElementById('rotateLeft');
+const rotateRightBtn = document.getElementById('rotateRight');
+rotateLeftBtn.addEventListener('click', () => rotateBoard(-1));
+rotateRightBtn.addEventListener('click', () => rotateBoard(1));
+
+/* ---------------------------------------------------------------------------
+   Press-and-hold magnifier lens. Holding still for HOLD_MS pops a circular
+   zoomed view of the tile under the finger plus its neighbours. It then tracks
+   the finger (pointer-events: none, so dragging continues underneath).
+--------------------------------------------------------------------------- */
+const LENS_SIZE = 168;
+const LENS_FRAME_TILES = 2.8;   // ~tile + adjacent tiles framed across the lens
+const HOLD_MS = 350;
+const HOLD_MOVE_TOL = 12;
+const LENS_DISMISS_DIST = 26;   // px from where the lens appeared -> dismiss
+const LENS_DISMISS_SPEED = 14;  // px in a single move event (a flick) -> dismiss
+const lensEl = document.getElementById('magnifier');
+const lensInner = document.getElementById('magnifierInner');
+let holdTimer = null;
+let holdStartX = 0, holdStartY = 0;
+let lensActive = false;
+let lensAnchorX = 0, lensAnchorY = 0;   // where the lens popped up
+let lensLastX = 0, lensLastY = 0;        // previous move position (for speed)
+
+function clearHoldTimer() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+
+function rebuildLensContent() {
+  const gr = gridEl.getBoundingClientRect();
+  const clone = gridEl.cloneNode(true);
+  clone.removeAttribute('id');
+  clone.style.width = gr.width + 'px';
+  clone.style.height = gr.height + 'px';
+  clone.style.margin = '0';
+  lensInner.innerHTML = '';
+  lensInner.appendChild(clone);
+}
+
+function updateLens(x, y) {
+  if (!lensActive) return;
+  const gr = gridEl.getBoundingClientRect();
+  const tile = gr.width / GRID_SIZE;
+  const zoom = LENS_SIZE / (LENS_FRAME_TILES * tile);
+  // Position the lens above the finger so it isn't hidden by it.
+  lensEl.style.left = (x - LENS_SIZE / 2) + 'px';
+  lensEl.style.top = Math.max(4, y - LENS_SIZE - 26) + 'px';
+  // Map the board point under the finger to the centre of the lens. The grid
+  // is square, so its bounding box matches its layout box in every rotation —
+  // this stays correct after the board is spun.
+  const fx = x - gr.left;
+  const fy = y - gr.top;
+  lensInner.style.transform =
+    `translate(${LENS_SIZE / 2 - fx * zoom}px, ${LENS_SIZE / 2 - fy * zoom}px) scale(${zoom})`;
+}
+
+function showLens(x, y) {
+  if (!gridRect) return;
+  // Only pop the lens when the hold landed on the board.
+  if (x < gridRect.left || x > gridRect.right || y < gridRect.top || y > gridRect.bottom) return;
+  lensActive = true;
+  lensAnchorX = x; lensAnchorY = y;
+  lensLastX = x; lensLastY = y;
+  rebuildLensContent();
+  updateLens(x, y);
+  lensEl.classList.add('show');
+  haptic(15);
+}
+
+function hideLens() {
+  clearHoldTimer();
+  if (!lensActive) return;
+  lensActive = false;
+  lensEl.classList.remove('show');
+  lensInner.innerHTML = '';
+}
+
 gridWrap.addEventListener('pointerdown', e => {
+  if (e.target.closest('.rotate-btn')) return;   // let the rotate buttons work
   e.preventDefault();
   gridWrap.setPointerCapture(e.pointerId);
   cacheCellPositions();
   pointerX = e.clientX; pointerY = e.clientY;
+  holdStartX = e.clientX; holdStartY = e.clientY;
+  clearHoldTimer();
+  holdTimer = setTimeout(() => showLens(pointerX, pointerY), HOLD_MS);
   startDrag(getCellFromPoint(e.clientX, e.clientY));
 });
 gridWrap.addEventListener('pointermove', e => {
+  const x = e.clientX, y = e.clientY;
+  if (lensActive) {
+    // Dismiss the lens once the finger moves far enough, or flicks fast enough,
+    // so it gets out of the way as soon as you start dragging.
+    const step = Math.hypot(x - lensLastX, y - lensLastY);
+    const fromAnchor = Math.hypot(x - lensAnchorX, y - lensAnchorY);
+    if (step > LENS_DISMISS_SPEED || fromAnchor > LENS_DISMISS_DIST) {
+      hideLens();
+    } else {
+      updateLens(x, y);
+      lensLastX = x; lensLastY = y;
+    }
+  } else if (holdTimer) {
+    if (Math.hypot(x - holdStartX, y - holdStartY) > HOLD_MOVE_TOL) clearHoldTimer();
+  }
+  pointerX = x; pointerY = y;
   if (!isDragging) return;
   e.preventDefault();
-  pointerX = e.clientX; pointerY = e.clientY;
-  continueDrag(getCellFromPoint(e.clientX, e.clientY));
+  continueDrag(getCellFromPoint(x, y));
   drawTrail();
 });
-gridWrap.addEventListener('pointerup', e => { e.preventDefault(); endDrag(); });
-gridWrap.addEventListener('pointercancel', e => { e.preventDefault(); endDrag(); });
+gridWrap.addEventListener('pointerup', e => {
+  if (e.target.closest('.rotate-btn')) return;
+  e.preventDefault(); hideLens(); endDrag();
+});
+gridWrap.addEventListener('pointercancel', e => { e.preventDefault(); hideLens(); endDrag(); });
 document.addEventListener('touchmove', e => { if (isDragging) e.preventDefault(); }, { passive: false });
 
 document.getElementById('newBoardBtn').onclick = () => newGame();
