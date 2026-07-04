@@ -4679,9 +4679,11 @@ function openTutorial(opts) {
   tutBuildGrid();
   tutResetState();
   tutRenderDots();
-  // In mandatory mode, hide the Skip button so the player taps through.
-  // Outside-click-to-dismiss is also disabled (handled in the listener).
-  tutSkipBtn.style.display = mandatory ? 'none' : '';
+  // The Skip button is always available — including on the mandatory first
+  // run — so players can bail out of the tutorial at any point. (Accidental
+  // outside-click-to-dismiss stays disabled during the mandatory run; see the
+  // listener below.)
+  tutSkipBtn.style.display = '';
   tutorialModal.classList.add('show');
   // Wait for the animation in before running step so getBoundingClientRect is accurate
   setTimeout(() => tutRunStep(), 380);
