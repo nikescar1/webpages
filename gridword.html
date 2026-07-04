@@ -2355,6 +2355,31 @@ function getStoredName() {
 function setStoredName(name) {
   try { localStorage.setItem(LS_NAME_KEY, name); } catch {}
 }
+
+// One-time cleanup when the board-defining word list changes. The daily board
+// is generated from BOARD_DICT, so swapping the dictionary changes every
+// board — meaning any saved daily progress or local best score was earned on
+// a board that no longer exists. Clear that stale local data once per
+// dictionary version so nothing renders against mismatched letters or shows a
+// best for a vanished board. (Free-play scores are personal point totals, not
+// tied to a specific board, so they're left intact.)
+const DICT_EPOCH = 'enable-v1';
+const LS_DICT_EPOCH_KEY = LS_PREFIX + 'dictEpoch';
+(function clearStaleDailyDataOnDictChange() {
+  try {
+    if (localStorage.getItem(LS_DICT_EPOCH_KEY) === DICT_EPOCH) return;
+    const bestPrefix = LS_PREFIX + 'best.';
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith(LS_DAILY_STATE_PREFIX) || k.startsWith(bestPrefix))) {
+        toRemove.push(k);
+      }
+    }
+    for (const k of toRemove) localStorage.removeItem(k);
+    localStorage.setItem(LS_DICT_EPOCH_KEY, DICT_EPOCH);
+  } catch {}
+})();
 // ══════════════════════════════════════════════════════════════
 // LEADERBOARD (Cloudflare Worker + D1)
 // ══════════════════════════════════════════════════════════════
