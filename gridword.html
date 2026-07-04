@@ -2131,7 +2131,7 @@
 
 <div class="all-tiles-banner" id="allTilesBanner">
   <div class="atb-line1">ALL TILES SCORED!</div>
-  <div class="atb-line2">+100 BONUS</div>
+  <div class="atb-line2">+25 BONUS</div>
 </div>
 
 <script>
@@ -3079,9 +3079,9 @@ let bonusScore = 0;
 // first tier is 3 (every tile used, since the shortest word is 3 letters),
 // then 4, 5, 6, … as the weakest tile keeps climbing.
 let allTilesBonusLevel = 0;
-const ALL_TILES_BONUS = 100;
-// Tier L (every tile >= L) is worth ALL_TILES_BONUS * (L - 2): 100, 200, 300…
-function allTilesBonusForLevel(level) { return ALL_TILES_BONUS * (level - 2); }
+const ALL_TILES_BONUS = 25;   // base bonus for the first tier (all tiles used, >= 3)
+// Tier L (every tile >= L) doubles from the base each step: 25, 50, 100, 200, 400…
+function allTilesBonusForLevel(level) { return ALL_TILES_BONUS * Math.pow(2, level - 3); }
 
 function computeTotalScore() {
   return cellScores.reduce((a, b) => a + b, 0) + bonusScore;
