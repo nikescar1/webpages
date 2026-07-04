@@ -1366,6 +1366,64 @@
   }
 
   /* Found words */
+  /* Found-words panel. Inline (flex child) on roomy screens; a fly-up bottom
+     sheet when vertical space is tight (short phones / short tablets). The
+     mode is chosen in JS by measuring the space left for the list. */
+  .found-panel {
+    width: 100%; max-width: 480px;
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column; align-items: stretch;
+  }
+  .found-handle { display: none; }   /* only visible in sheet mode */
+
+  .found-panel.sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    width: 100%; max-width: none;
+    flex: none;
+    height: min(56vh, 460px);
+    z-index: 60;
+    background: var(--bg);
+    border-top: 3px solid var(--ink);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -6px 22px rgba(42, 30, 63, 0.22);
+    padding: 0 12px 12px;
+    /* collapsed → only the 48px handle peeks above the bottom edge */
+    transform: translateY(calc(100% - 48px));
+  }
+  /* Transition is added a frame after the sheet appears (via the .anim class)
+     so the initial collapse snaps into place instead of sliding on load. */
+  .found-panel.sheet.anim { transition: transform 0.32s cubic-bezier(0.34, 1.4, 0.5, 1); }
+  .found-panel.sheet.open { transform: translateY(0); }
+  .found-panel.sheet .found-handle {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; height: 48px; flex: none;
+    border: none; background: none; cursor: pointer; position: relative;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px;
+    color: var(--ink); letter-spacing: 0.5px;
+    touch-action: manipulation;
+  }
+  .found-panel.sheet .found-handle::before {
+    content: ''; position: absolute; top: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 40px; height: 4px; border-radius: 999px;
+    background: var(--line-soft);
+  }
+  .found-handle-chevron { font-size: 11px; opacity: 0.6; transition: transform 0.3s; }
+  .found-panel.sheet.open .found-handle-chevron { transform: rotate(180deg); }
+  .found-handle.pulse { animation: foundHandlePulse 0.5s ease; }
+  @keyframes foundHandlePulse {
+    0%, 100% { transform: translateY(0); }
+    35% { transform: translateY(-5px); }
+  }
+  .found-panel.sheet .found-sort,
+  .found-panel.sheet .found-words-list { max-width: none; }
+
+  /* Reserve room for the collapsed handle so it never overlaps the info bar,
+     and drop the now-duplicated word count from the info bar. */
+  #gameScreen.has-sheet { padding-bottom: 54px; }
+  #gameScreen.has-sheet .words-found { display: none; }
+
   .found-sort {
     width: 100%; max-width: 480px;
     display: flex; align-items: center; gap: 6px;
@@ -1933,13 +1991,18 @@
     </div>
   </div>
 
-  <div class="found-sort" id="foundSort" style="display:none">
-    <span class="found-sort-label">Sort</span>
-    <button class="sort-btn active" data-sort="recent">Recent</button>
-    <button class="sort-btn" data-sort="value">Value</button>
+  <div class="found-panel" id="foundPanel">
+    <button class="found-handle" id="foundHandle" type="button" aria-label="Toggle found words">
+      <span class="found-handle-count" id="foundHandleCount">0 words</span>
+      <span class="found-handle-chevron" id="foundHandleChevron">▲</span>
+    </button>
+    <div class="found-sort" id="foundSort" style="display:none">
+      <span class="found-sort-label">Sort</span>
+      <button class="sort-btn active" data-sort="recent">Recent</button>
+      <button class="sort-btn" data-sort="value">Value</button>
+    </div>
+    <div class="found-words-list" id="foundList"></div>
   </div>
-
-  <div class="found-words-list" id="foundList"></div>
 </div>
 
 <div class="modal-overlay" id="modal">
@@ -3119,6 +3182,7 @@ function newGame(opts) {
   wordBar.textContent = 'drag to spell';
   clearTrail();
   refreshSubmitButton();
+  updateFoundLayout();
 }
 
 function refreshSubmitButton() {
@@ -3928,6 +3992,7 @@ function sortFoundList() {
 
 function updateSortVisibility() {
   document.getElementById('foundSort').style.display = foundWords.length ? '' : 'none';
+  updateFoundHandle();
 }
 
 document.getElementById('foundSort').addEventListener('click', e => {
@@ -3942,6 +4007,79 @@ document.getElementById('foundSort').addEventListener('click', e => {
   sortFoundList();
   foundListEl.scrollTop = 0;
 });
+
+// ── Found-words panel: inline vs fly-up bottom sheet ───────────
+// On roomy screens the list sits inline (flex child). When the space left
+// for it would be too small (short phones / short tablets), it becomes a
+// bottom sheet: a tappable handle showing the word count that flies up to a
+// scrollable panel. The mode is chosen by measuring the space the inline list
+// would get — all inputs are independent of the current mode, so it can't
+// oscillate.
+let lastHandleCount = 0;
+const FOUND_SHEET_MIN = 150;   // px of inline room below which we switch to a sheet
+
+function updateFoundHandle() {
+  const n = foundWords.length;
+  const countEl = document.getElementById('foundHandleCount');
+  if (countEl) countEl.textContent = `${n} word${n !== 1 ? 's' : ''}`;
+  const panel = document.getElementById('foundPanel');
+  const handle = document.getElementById('foundHandle');
+  // Nudge the handle when a new word lands while the sheet is collapsed.
+  if (handle && n > lastHandleCount &&
+      panel.classList.contains('sheet') && !panel.classList.contains('open')) {
+    handle.classList.remove('pulse'); void handle.offsetWidth; handle.classList.add('pulse');
+  }
+  lastHandleCount = n;
+}
+
+function measureH(sel) {
+  const el = document.querySelector(sel);
+  return el && el.offsetParent !== null ? el.offsetHeight : 0;
+}
+
+function updateFoundLayout() {
+  const gs = document.getElementById('gameScreen');
+  if (!gs || !gs.classList.contains('active')) return;
+  const panel = document.getElementById('foundPanel');
+
+  // Hypothetical space for an inline list = viewport minus the fixed chrome
+  // above it and the square board (+ its rotate-button margin).
+  const boardOuter = gridWrap.offsetHeight + 56;
+  const above = measureH('.header') + measureH('.word-bar') +
+                measureH('#sizeSelector') + boardOuter + measureH('.info-bar');
+  const avail = gs.clientHeight - above - 68;   // ~gaps + vertical padding
+
+  const needSheet = avail < FOUND_SHEET_MIN;
+  const wasSheet = panel.classList.contains('sheet');
+  gs.classList.toggle('has-sheet', needSheet);
+  if (needSheet) {
+    panel.classList.add('sheet');
+    if (!wasSheet) {
+      // Snap to the collapsed position without animating, then enable the
+      // transition shortly after so subsequent toggles slide smoothly.
+      panel.classList.remove('anim', 'open');
+      setTimeout(() => {
+        if (panel.classList.contains('sheet')) panel.classList.add('anim');
+      }, 60);
+    }
+  } else {
+    panel.classList.remove('sheet', 'open', 'anim');
+  }
+  updateFoundHandle();
+}
+
+document.getElementById('foundHandle').addEventListener('click', () => {
+  const panel = document.getElementById('foundPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) foundListEl.scrollTop = 0;
+});
+
+let foundLayoutTimer = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(foundLayoutTimer);
+  foundLayoutTimer = setTimeout(updateFoundLayout, 120);
+});
+window.addEventListener('orientationchange', () => setTimeout(updateFoundLayout, 250));
 
 // ══════════════════════════════════════════════════════════════
 // SUBMIT BOARD
