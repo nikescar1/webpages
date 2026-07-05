@@ -3604,15 +3604,20 @@ function getCellFromPoint(x, y) {
     return -2;
   }
 
-  // Initial pickup uses the same diamond region. Pick the closest center
-  // when multiple are in range.
+  // Not dragging — this is the initial press to start a word, or a tap in
+  // tap-to-select mode. Use the full SQUARE tile face (plus half the gap) so a
+  // press anywhere on the tile registers; the diamond region above is only
+  // wanted mid-drag, where it prevents diagonal misreads. Pick the closest
+  // tile (Chebyshev) when a press in the gap falls near two of them.
   let bestIdx = -1;
   let bestDist = Infinity;
   for (let i = 0; i < CELL_COUNT; i++) {
     const cc = cellCenters[i];
-    const dist = Math.abs(x - cc.x) + Math.abs(y - cc.y);
-    if (dist < cc.hw * 1.05 && dist < bestDist) {
-      bestDist = dist; bestIdx = i;
+    const dx = Math.abs(x - cc.x);
+    const dy = Math.abs(y - cc.y);
+    if (dx <= cc.hw + 2 && dy <= cc.hh + 2) {
+      const d = Math.max(dx, dy);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
     }
   }
   return bestIdx;
