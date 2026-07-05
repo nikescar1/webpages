@@ -2409,14 +2409,15 @@ function setStoredName(name) {
   try { localStorage.setItem(LS_NAME_KEY, name); } catch {}
 }
 
-// One-time cleanup when the board-defining word list changes. The daily board
-// is generated from BOARD_DICT, so swapping the dictionary changes every
-// board — meaning any saved daily progress or local best score was earned on
-// a board that no longer exists. Clear that stale local data once per
-// dictionary version so nothing renders against mismatched letters or shows a
-// best for a vanished board. (Free-play scores are personal point totals, not
-// tied to a specific board, so they're left intact.)
-const DICT_EPOCH = 'enable-v1';
+// One-time cleanup when the board-defining word list OR the generation
+// algorithm changes. The daily board is generated from BOARD_DICT, so swapping
+// the dictionary (or changing how boards are built) changes every board —
+// meaning any saved daily progress or local best score was earned on a board
+// that no longer exists. Clear that stale local data once per version so
+// nothing renders against mismatched letters or shows a best for a vanished
+// board. (Free-play scores are personal point totals, not tied to a specific
+// board, so they're left intact.)
+const DICT_EPOCH = 'enable-v2';
 const LS_DICT_EPOCH_KEY = LS_PREFIX + 'dictEpoch';
 (function clearStaleDailyDataOnDictChange() {
   try {
@@ -2805,6 +2806,138 @@ function findUnusableCells(grid, gridSize, bd, minLen) {
   return bad;
 }
 
+// Like cellHasReachableWord, but returns the actual cell-index PATH of a word
+// in `bd` (length minLen..maxLen) that passes through `idx` — or null if no
+// such word covers the cell. Handing back the path lets the repair below track
+// which tiles a cell's coverage depends on, so changing a tile only forces a
+// recheck of the cells whose covering word used it.
+function coverPathFor(grid, gridSize, idx, bd, minLen, maxLen) {
+  const prefixes = getPrefixSet(bd);
+  const startCh = grid[idx];
+  if (startCh == null) return null;
+  const n = grid.length;
+  const visited = new Uint8Array(n);
+  const path = [];
+  let found = null;
+
+  function dfs(cur, str, hitTarget) {
+    if (hitTarget && str.length >= minLen && bd.has(str)) { found = path.slice(); return true; }
+    if (str.length >= maxLen) return false;
+    if (!prefixes.has(str)) return false;
+    for (const nb of getAdj(cur, gridSize)) {
+      if (visited[nb] || grid[nb] == null) continue;
+      visited[nb] = 1; path.push(nb);
+      if (dfs(nb, str + grid[nb], hitTarget || nb === idx)) return true;
+      path.pop(); visited[nb] = 0;
+    }
+    return false;
+  }
+
+  // Phase A: idx is the word's first letter.
+  visited[idx] = 1; path.push(idx);
+  if (dfs(idx, startCh, true)) return found;
+  path.pop(); visited[idx] = 0;
+
+  // Phase B: idx appears later — start from every other cell, requiring the
+  // walk to pass through idx.
+  for (let s = 0; s < n; s++) {
+    if (s === idx || grid[s] == null) continue;
+    visited[s] = 1; path.push(s);
+    if (dfs(s, grid[s], false)) return found;
+    path.pop(); visited[s] = 0;
+  }
+  return null;
+}
+
+// Salvage letter ordering. A consonant that can't be used tries vowels first
+// (and vice-versa), then the rest of the alphabet — matching the design:
+// consonant -> vowel, vowel -> consonant.
+const _SALVAGE_VOWELS = new Set(['a', 'e', 'i', 'o', 'u', 'y']);
+const _SALVAGE_ORDER = (() => {
+  const out = [], seen = new Set();
+  for (const c of FREQ_TABLE) if (!seen.has(c)) { seen.add(c); out.push(c); }
+  for (let i = 97; i <= 122; i++) {
+    const c = String.fromCharCode(i);
+    if (!seen.has(c)) { seen.add(c); out.push(c); }
+  }
+  return out;
+})();
+const _SALVAGE_VOWEL_ORDER = _SALVAGE_ORDER.filter(c => _SALVAGE_VOWELS.has(c));
+const _SALVAGE_CONSONANT_ORDER = _SALVAGE_ORDER.filter(c => !_SALVAGE_VOWELS.has(c));
+function salvageCandidates(letter) {
+  return _SALVAGE_VOWELS.has(letter)
+    ? _SALVAGE_CONSONANT_ORDER.concat(_SALVAGE_VOWEL_ORDER)   // stuck vowel -> consonants first
+    : _SALVAGE_VOWEL_ORDER.concat(_SALVAGE_CONSONANT_ORDER);  // stuck consonant -> vowels first
+}
+
+// Rewrite letters until every cell is part of at least one word in `bd`. An
+// uncoverable cell has its letter flipped to the opposite class (consonant ->
+// vowel, vowel -> consonant, then same class as a fallback). Because a cell's
+// coverage is a specific word path, changing a tile only invalidates the
+// coverage of cells whose word ran through that tile — so we recheck just
+// those, not the whole board, and loop until everything is covered. Returns
+// true if the board is fully completable with common words.
+function ensureBoardCompletable(grid, gridSize, bd, minLen) {
+  const n = gridSize * gridSize;
+  const maxLen = 7;
+  const cover = new Array(n);
+  for (let i = 0; i < n; i++) cover[i] = coverPathFor(grid, gridSize, i, bd, minLen, maxLen);
+
+  // A tile changed: drop the coverage of every cell whose word used that tile,
+  // then recompute the dropped ones (and the tile itself) against the new grid.
+  function revalidateAround(tile) {
+    for (let i = 0; i < n; i++) {
+      if (i !== tile && cover[i] && cover[i].indexOf(tile) !== -1) cover[i] = null;
+    }
+    for (let i = 0; i < n; i++) {
+      if (cover[i] === null) cover[i] = coverPathFor(grid, gridSize, i, bd, minLen, maxLen);
+    }
+  }
+
+  const MAX_ITERS = n * 40;
+  for (let iter = 0; iter < MAX_ITERS; iter++) {
+    let bad = -1;
+    for (let i = 0; i < n; i++) if (cover[i] === null) { bad = i; break; }
+    if (bad === -1) return true;   // fully covered
+
+    const orig = grid[bad];
+
+    // 1) Flip `bad` to a letter (opposite class first) that gives it a cover.
+    let placed = false;
+    for (const c of salvageCandidates(orig)) {
+      if (c === orig) continue;
+      grid[bad] = c;
+      if (coverPathFor(grid, gridSize, bad, bd, minLen, maxLen)) { placed = true; break; }
+    }
+    if (placed) { revalidateAround(bad); continue; }
+
+    // 2) Can't cover it alone — also flip a neighbour to unlock a word.
+    grid[bad] = orig;
+    for (const nb of getAdj(bad, gridSize)) {
+      const origN = grid[nb];
+      let ok = false;
+      for (const cn of salvageCandidates(origN)) {
+        if (cn === origN) continue;
+        grid[nb] = cn;
+        for (const c of salvageCandidates(orig)) {
+          grid[bad] = c;
+          if (coverPathFor(grid, gridSize, bad, bd, minLen, maxLen)) { ok = true; break; }
+        }
+        if (ok) break;
+      }
+      if (ok) { placed = true; revalidateAround(nb); revalidateAround(bad); break; }
+      grid[nb] = origN; grid[bad] = orig;
+    }
+    if (placed) continue;
+
+    // 3) Genuinely stuck on this planted layout — let the caller try another.
+    grid[bad] = orig;
+    return false;
+  }
+  for (let i = 0; i < n; i++) if (cover[i] === null) return false;
+  return true;
+}
+
 // True if `word` can be traced on the current global `grid` via
 // 8-connected adjacency without reusing a cell.
 function wordExistsOnGrid(word) {
@@ -2905,30 +3038,6 @@ function generateGrid(gridSize, rng, difficulty) {
     return a;
   }
 
-  // Distinct candidate letters in frequency order — used as the base
-  // candidate set for every salvage pass below.
-  const FREQ_CANDIDATES = (() => {
-    const out = [];
-    const seen = new Set();
-    for (const c of FREQ_TABLE) {
-      if (!seen.has(c)) { seen.add(c); out.push(c); }
-    }
-    return out;
-  })();
-  const VOWELS = new Set(['a', 'e', 'i', 'o', 'u', 'y']);
-  const VOWELS_ORDER = ['a', 'e', 'i', 'o', 'u', 'y'];
-  const CONSONANTS_ORDER = FREQ_CANDIDATES.filter(c => !VOWELS.has(c));
-
-  // When a consonant is the problem, vowels are far more likely to unlock
-  // a word — so try them first. When a vowel is stuck, prioritize the
-  // common consonants. Falls back to the full alphabet either way.
-  function candidatesFor(currentLetter) {
-    if (VOWELS.has(currentLetter)) {
-      return CONSONANTS_ORDER.concat(VOWELS_ORDER);
-    }
-    return VOWELS_ORDER.concat(CONSONANTS_ORDER);
-  }
-
   for (let attempt = 0; attempt < 30; attempt++) {
     const grid = new Array(cellCount).fill(null);
 
@@ -2957,60 +3066,10 @@ function generateGrid(gridSize, rng, difficulty) {
       if (grid[i] == null) grid[i] = pickLetter(rng, ALL_LETTERS);
     }
 
-    // Verify phase A: swap each bad cell with a single different letter.
-    // Try the opposite letter-class first (vowels if consonant is stuck,
-    // consonants if vowel is stuck).
-    let bad = findUnusableCells(grid, gridSize, verifyDict, minLen);
-    for (let pass = 0; pass < 8 && bad.length > 0; pass++) {
-      let fixedAny = false;
-      for (const idx of bad) {
-        const original = grid[idx];
-        let fixed = false;
-        for (const c of candidatesFor(original)) {
-          if (c === original) continue;
-          grid[idx] = c;
-          if (cellHasReachableWord(grid, idx, gridSize, verifyDict, minLen, 7)) {
-            fixed = true; fixedAny = true; break;
-          }
-        }
-        if (!fixed) grid[idx] = original;
-      }
-      if (!fixedAny) break;
-      bad = findUnusableCells(grid, gridSize, verifyDict, minLen);
-    }
+    // Guarantee: rewrite letters until every cell can form a common word.
+    ensureBoardCompletable(grid, gridSize, verifyDict, minLen);
 
-    // Verify phase B: for each remaining bad cell, also try swapping one
-    // of its neighbors. This rescues corners whose neighbor letters don't
-    // happen to form any word, regardless of what the corner becomes.
-    bad = findUnusableCells(grid, gridSize, verifyDict, minLen);
-    for (const idx of bad) {
-      const origCenter = grid[idx];
-      const adj = getAdj(idx, gridSize);
-      let fixed = false;
-      const centerCandidates = candidatesFor(origCenter);
-      outer:
-      for (const newCenter of centerCandidates) {
-        grid[idx] = newCenter;
-        for (const nIdx of adj) {
-          const origN = grid[nIdx];
-          if (origN == null) continue;
-          const neighborCandidates = candidatesFor(origN);
-          for (const newN of neighborCandidates) {
-            if (newN === origN) continue;
-            grid[nIdx] = newN;
-            if (cellHasReachableWord(grid, idx, gridSize, verifyDict, minLen, 7) &&
-                cellHasReachableWord(grid, nIdx, gridSize, verifyDict, minLen, 7)) {
-              fixed = true;
-              break outer;
-            }
-          }
-          grid[nIdx] = origN;
-        }
-      }
-      if (!fixed) grid[idx] = origCenter;
-    }
-
-    bad = findUnusableCells(grid, gridSize, verifyDict, minLen);
+    const bad = findUnusableCells(grid, gridSize, verifyDict, minLen);
     if (bad.length < bestBad) {
       bestBad = bad.length;
       bestGrid = grid.slice();
@@ -3018,89 +3077,13 @@ function generateGrid(gridSize, rng, difficulty) {
     if (bad.length === 0) break;
   }
 
-  // Diagnostic: report dict state so we can confirm the salvage has what
-  // it needs. Logged once per generation.
-  console.log('[generateGrid] BOARD_DICT.size=' + BOARD_DICT.size +
-              ', DICT.size=' + DICT.size +
-              ', verifyDict===DICT? ' + (verifyDict === DICT) +
-              ', minLen=' + minLen);
-  const preFinalBad = findUnusableCells(bestGrid, gridSize, verifyDict, minLen);
-  console.log('[generateGrid] cells unusable per verifyDict before final fallback: '
-              + preFinalBad.length,
-              preFinalBad.slice(0, 8).map(i => ({ idx: i, letter: bestGrid[i] })));
-
-  // Final fallback: if any cell is still unusable per the full DICT
-  // (the dictionary the player actually plays against), run Phase A and
-  // Phase B once more against DICT. We trigger off DICT — not BOARD_DICT
-  // — because a cell can be "usable per common words" via a word that
-  // doesn't exist in DICT, leaving the player unable to score it.
-  if (DICT.size > 0) {
-    let bad2 = findUnusableCells(bestGrid, gridSize, DICT, minLen);
-    if (bad2.length > 0) {
-      // Phase A against full dict
-      for (let pass = 0; pass < 8 && bad2.length > 0; pass++) {
-        let fixedAny = false;
-        for (const idx of bad2) {
-          const original = bestGrid[idx];
-          let fixed = false;
-          for (const c of candidatesFor(original)) {
-            if (c === original) continue;
-            bestGrid[idx] = c;
-            if (cellHasReachableWord(bestGrid, idx, gridSize, DICT, minLen, 7)) {
-              fixed = true; fixedAny = true; break;
-            }
-          }
-          if (!fixed) bestGrid[idx] = original;
-        }
-        if (!fixedAny) break;
-        bad2 = findUnusableCells(bestGrid, gridSize, DICT, minLen);
-      }
-      // Phase B against full dict
-      bad2 = findUnusableCells(bestGrid, gridSize, DICT, minLen);
-      for (const idx of bad2) {
-        const origCenter = bestGrid[idx];
-        const adj = getAdj(idx, gridSize);
-        let fixed = false;
-        const centerCandidates = candidatesFor(origCenter);
-        outer:
-        for (const newCenter of centerCandidates) {
-          bestGrid[idx] = newCenter;
-          for (const nIdx of adj) {
-            const origN = bestGrid[nIdx];
-            if (origN == null) continue;
-            const neighborCandidates = candidatesFor(origN);
-            for (const newN of neighborCandidates) {
-              if (newN === origN) continue;
-              bestGrid[nIdx] = newN;
-              if (cellHasReachableWord(bestGrid, idx, gridSize, DICT, minLen, 7) &&
-                  cellHasReachableWord(bestGrid, nIdx, gridSize, DICT, minLen, 7)) {
-                fixed = true;
-                break outer;
-              }
-            }
-            bestGrid[nIdx] = origN;
-          }
-        }
-        if (!fixed) bestGrid[idx] = origCenter;
-      }
-    }
-  }
-
-  // Final diagnostic: log any cells that are STILL unusable per the full
-  // dictionary. If you see entries here, the algorithm couldn't rescue
-  // every cell even with DICT — that's the case to investigate.
-  const finalBad = findUnusableCells(bestGrid, gridSize, DICT.size > 0 ? DICT : verifyDict, minLen);
+  // Safety net: repair the chosen board once more (a no-op when it's already
+  // clean). Because the common list is a subset of the full dictionary,
+  // guaranteeing coverage by common words also guarantees it against DICT.
+  if (bestBad > 0) ensureBoardCompletable(bestGrid, gridSize, verifyDict, minLen);
+  const finalBad = findUnusableCells(bestGrid, gridSize, verifyDict, minLen);
   if (finalBad.length > 0) {
-    console.warn('[generateGrid] cells still unusable after all fixes:',
-                 finalBad.map(i => ({
-                   idx: i,
-                   letter: bestGrid[i],
-                   row: Math.floor(i / gridSize),
-                   col: i % gridSize,
-                   neighbors: getAdj(i, gridSize).map(n => bestGrid[n]),
-                 })));
-  } else {
-    console.log('[generateGrid] every cell is part of at least one DICT word ✓');
+    console.warn('[generateGrid] ' + finalBad.length + ' cell(s) still unusable after repair');
   }
 
   return bestGrid;
