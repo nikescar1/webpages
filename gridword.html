@@ -118,6 +118,25 @@
   #homeScreen.active { display: flex; }
   #homeScreen::-webkit-scrollbar { width: 0; }
 
+  .settings-gear {
+    position: absolute;
+    top: 14px; right: 14px;
+    z-index: 5;
+    width: 42px; height: 42px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface);
+    border: 2.5px solid var(--ink);
+    border-radius: 12px;
+    color: var(--ink);
+    box-shadow: 3px 3px 0 0 var(--shadow-color);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .settings-gear:hover { background: #ece8f5; }
+  .settings-gear:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
+  .settings-gear svg { width: 22px; height: 22px; display: block; }
+
   .home-inner {
     width: 100%; max-width: 480px;
     margin: 0 auto;
@@ -934,6 +953,9 @@
     overflow: hidden; padding: 0 16px; flex-shrink: 0;
   }
   .word-bar.dragging { color: var(--ink); }
+  /* Tap mode: the word bar is the submit control. */
+  body.tap-mode .word-bar { cursor: pointer; }
+  body.tap-mode .word-bar:active { transform: translateY(1px); }
   .word-bar[data-len="3"].valid { background: var(--c3); color: white; }
   .word-bar[data-len="4"].valid { background: var(--c4); color: white; }
   .word-bar[data-len="5"].valid { background: var(--c5); color: var(--ink); }
@@ -1883,6 +1905,12 @@
 </div>
 
 <div id="homeScreen">
+  <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+  </button>
   <div class="home-inner">
     <div class="home-logo">
       <div class="word"><span class="pop">G</span><span class="pop">R</span><span class="pop">I</span><span class="pop">D</span><span class="pop">W</span><span class="pop">O</span><span class="pop">R</span><span class="pop">D</span></div>
@@ -1929,9 +1957,6 @@
       </div>
     </div>
 
-    <div class="home-foot">
-      <span class="settings-link" id="settingsLink">Leaderboard Settings</span>
-    </div>
   </div>
 </div>
 
@@ -2038,6 +2063,13 @@
     <h2>SETTINGS</h2>
     <div class="modal-sub">preferences</div>
     <div class="settings-form">
+      <div class="settings-row settings-toggle">
+        <div>
+          <div class="toggle-label">Tap to select</div>
+          <div class="toggle-sub">Tap letters to build a word, then tap the word bar above the board to submit (instead of dragging).</div>
+        </div>
+        <div class="toggle-switch" id="tapSelectToggle" role="switch" aria-checked="false" tabindex="0"></div>
+      </div>
       <div class="settings-row settings-toggle">
         <div>
           <div class="toggle-label">Vibration / haptics</div>
@@ -2270,6 +2302,15 @@ const LS_NAME_KEY = LS_PREFIX + 'name';
 const LS_HAPTICS_KEY = LS_PREFIX + 'haptics';
 const LS_DAILY_STATE_PREFIX = LS_PREFIX + 'dailyState.';
 
+// Selection mode: drag (default) vs tap-to-select. When on, players tap
+// letters to build a word and tap the word bar to submit.
+const LS_TAP_KEY = LS_PREFIX + 'tapSelect';
+function isTapSelect() { try { return localStorage.getItem(LS_TAP_KEY) === '1'; } catch { return false; } }
+function setTapSelect(on) {
+  try { if (on) localStorage.setItem(LS_TAP_KEY, '1'); else localStorage.removeItem(LS_TAP_KEY); } catch {}
+}
+let tapMode = isTapSelect();
+
 // Bump when the saved-state schema or generation algorithm changes such
 // that cellScores/wordPaths from older state can't be trusted. State with
 // a mismatched version is still loaded — foundWords and the submitted
@@ -2415,7 +2456,7 @@ async function lbSubmit(dateKey, diff, name, score, wordCount) {
 // HOME SCREEN
 // ══════════════════════════════════════════════════════════════
 const homeScreen = document.getElementById('homeScreen');
-const settingsLink = document.getElementById('settingsLink');
+const settingsGear = document.getElementById('settingsGear');
 const freePlayBtn = document.getElementById('freePlayBtn');
 
 // Single daily difficulty key now that there's no easy/medium/hard.
@@ -2443,7 +2484,7 @@ function initHome() {
   btn.onclick = () => startDaily();
 
   freePlayBtn.onclick = () => startFreePlay();
-  settingsLink.onclick = openSettings;
+  settingsGear.onclick = openSettings;
 
   lbHomeState.dateKey = dk;
   renderHomeLeaderboard();
@@ -3211,7 +3252,7 @@ function newGame(opts) {
   }
   wordBar.className = 'word-bar';
   wordBar.removeAttribute('data-len');
-  wordBar.textContent = 'drag to spell';
+  wordBar.textContent = spellHint();
   clearTrail();
   refreshSubmitButton();
   updateFoundLayout();
@@ -3555,6 +3596,45 @@ function endDrag() {
   highlightPath();
 }
 
+// Tap-to-select: build the word one tile at a time. Tapping the current last
+// tile removes it (undo); tapping an adjacent tile appends it (reuse of an
+// earlier tile is allowed, just like the drag path). Submitting is done by
+// tapping the word bar (submitCurrentSelection).
+function tapTile(idx) {
+  if (gameOver || idx < 0) return;
+  if (path.length === 0) {
+    path = [idx];
+    haptic(8);
+    highlightPath(); updateWordBar();
+    return;
+  }
+  const last = path[path.length - 1];
+  if (idx === last) {
+    path.pop();
+    haptic(5);
+    highlightPath(); updateWordBar();
+    return;
+  }
+  if (isAdjacent(last, idx)) {
+    path.push(idx);
+    haptic(6);
+    highlightPath(); updateWordBar();
+    return;
+  }
+  haptic(10);   // not adjacent — reject
+}
+
+function submitCurrentSelection() {
+  if (path.length === 0) return;
+  const word = path.map(i => grid[i]).join('');
+  submitWord(word, [...path]);
+  path = [];
+  highlightPath();
+}
+
+// Placeholder shown in the word bar when nothing is selected.
+function spellHint() { return tapMode ? 'tap to spell' : 'drag to spell'; }
+
 function highlightPath() {
   for (let i = 0; i < CELL_COUNT; i++) getCellEl(i).classList.remove('in-path');
   for (const idx of path) getCellEl(idx).classList.add('in-path');
@@ -3568,7 +3648,7 @@ function updateWordBar() {
   if (word.length === 0) {
     wordBar.className = 'word-bar';
     wordBar.removeAttribute('data-len');
-    wordBar.textContent = 'drag to spell';
+    wordBar.textContent = spellHint();
     return;
   }
   const wLower = word.toLowerCase();
@@ -3799,13 +3879,19 @@ function hideLens() {
 gridWrap.addEventListener('pointerdown', e => {
   if (e.target.closest('.rotate-btn')) return;   // let the rotate buttons work
   e.preventDefault();
-  gridWrap.setPointerCapture(e.pointerId);
   cacheCellPositions();
+  if (tapMode) {
+    // Tap mode: each press toggles a tile; no dragging, no magnifier.
+    tapTile(getCellFromPoint(e.clientX, e.clientY));
+    return;
+  }
+  gridWrap.setPointerCapture(e.pointerId);
   pointerX = e.clientX; pointerY = e.clientY;
   armStillTimer(e.clientX, e.clientY);
   startDrag(getCellFromPoint(e.clientX, e.clientY));
 });
 gridWrap.addEventListener('pointermove', e => {
+  if (tapMode) return;
   const x = e.clientX, y = e.clientY;
   if (lensActive) {
     // Dismiss once the finger moves far enough, or flicks fast enough — then
@@ -3831,11 +3917,18 @@ gridWrap.addEventListener('pointermove', e => {
   drawTrail();
 });
 gridWrap.addEventListener('pointerup', e => {
+  if (tapMode) return;
   if (e.target.closest('.rotate-btn')) return;
   e.preventDefault(); hideLens(); endDrag();
 });
-gridWrap.addEventListener('pointercancel', e => { e.preventDefault(); hideLens(); endDrag(); });
+gridWrap.addEventListener('pointercancel', e => { if (tapMode) return; e.preventDefault(); hideLens(); endDrag(); });
 document.addEventListener('touchmove', e => { if (isDragging) e.preventDefault(); }, { passive: false });
+
+// Tap the word bar to submit the current selection (tap mode only).
+wordBar.addEventListener('click', () => {
+  if (!tapMode || gameOver) return;
+  submitCurrentSelection();
+});
 
 document.getElementById('newBoardBtn').onclick = () => newGame();
 document.getElementById('freshBoardBtn').onclick = () => {
@@ -3879,7 +3972,7 @@ function submitWord(word, cellPath) {
       if (!isDragging) {
         wordBar.className = 'word-bar';
         wordBar.removeAttribute('data-len');
-        wordBar.textContent = 'drag to spell';
+        wordBar.textContent = spellHint();
       }
     }, 900);
     return;
@@ -3966,7 +4059,7 @@ function submitWord(word, cellPath) {
     if (!isDragging) {
       wordBar.className = 'word-bar';
       wordBar.removeAttribute('data-len');
-      wordBar.textContent = 'drag to spell';
+      wordBar.textContent = spellHint();
     }
   }, 1100);
 
@@ -3980,7 +4073,7 @@ function flashWordBar(type, dur) {
     if (!isDragging) {
       wordBar.className = 'word-bar';
       wordBar.removeAttribute('data-len');
-      wordBar.textContent = 'drag to spell';
+      wordBar.textContent = spellHint();
     }
   }, dur);
 }
@@ -4261,27 +4354,32 @@ function closeModal() {
 // ══════════════════════════════════════════════════════════════
 const settingsModal = document.getElementById('settingsModal');
 const hapticsToggle = document.getElementById('hapticsToggle');
+const tapSelectToggle = document.getElementById('tapSelectToggle');
 
-function setHapticsToggleVisual(on) {
-  if (!hapticsToggle) return;
-  hapticsToggle.classList.toggle('on', !!on);
-  hapticsToggle.setAttribute('aria-checked', on ? 'true' : 'false');
+function setToggleVisual(el, on) {
+  if (!el) return;
+  el.classList.toggle('on', !!on);
+  el.setAttribute('aria-checked', on ? 'true' : 'false');
 }
-
-if (hapticsToggle) {
+function wireToggle(el, onFlip) {
+  if (!el) return;
   const toggle = () => {
-    const next = !hapticsToggle.classList.contains('on');
-    setHapticsToggleVisual(next);
-    if (next) haptic(20); // confirm with a buzz when turning on
+    const next = !el.classList.contains('on');
+    setToggleVisual(el, next);
+    if (onFlip) onFlip(next);
   };
-  hapticsToggle.addEventListener('click', toggle);
-  hapticsToggle.addEventListener('keydown', e => {
+  el.addEventListener('click', toggle);
+  el.addEventListener('keydown', e => {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); }
   });
 }
 
+wireToggle(hapticsToggle, next => { if (next) haptic(20); });
+wireToggle(tapSelectToggle, null);
+
 function openSettings() {
-  setHapticsToggleVisual(isHapticsOn());
+  setToggleVisual(hapticsToggle, isHapticsOn());
+  setToggleVisual(tapSelectToggle, isTapSelect());
   settingsModal.classList.add('show');
 }
 function closeSettings() {
@@ -4291,9 +4389,25 @@ function closeSettings() {
 document.getElementById('settingsCancelBtn').onclick = closeSettings;
 document.getElementById('settingsSaveBtn').onclick = () => {
   setHapticsOn(hapticsToggle && hapticsToggle.classList.contains('on'));
+  const nextTap = !!(tapSelectToggle && tapSelectToggle.classList.contains('on'));
+  setTapSelect(nextTap);
+  applyTapMode(nextTap);
   closeSettings();
   showToast('Settings saved');
 };
+
+// Switch selection mode live: clear any in-progress selection and refresh the
+// word-bar hint so the change takes effect without a reload.
+function applyTapMode(on) {
+  tapMode = on;
+  document.body.classList.toggle('tap-mode', on);
+  isDragging = false;
+  path = [];
+  if (typeof highlightPath === 'function') highlightPath();
+  if (typeof updateWordBar === 'function') updateWordBar();
+}
+// Reflect the persisted setting at startup.
+document.body.classList.toggle('tap-mode', tapMode);
 
 // ══════════════════════════════════════════════════════════════
 // RULES MODAL
