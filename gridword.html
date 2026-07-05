@@ -46,6 +46,19 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Page tint by highest all-tiles bonus tier reached — cream to start, then a
+     soft wash of each tier's colour. */
+  body { transition: background-color 0.8s ease; }
+  body[data-bonus-level="3"]  { background-color: #FFDCE7; }
+  body[data-bonus-level="4"]  { background-color: #FFE6CF; }
+  body[data-bonus-level="5"]  { background-color: #FFF3C9; }
+  body[data-bonus-level="6"]  { background-color: #D9F7D9; }
+  body[data-bonus-level="7"]  { background-color: #CDF3EE; }
+  body[data-bonus-level="8"]  { background-color: #D4EEFD; }
+  body[data-bonus-level="9"]  { background-color: #DEDFFB; }
+  body[data-bonus-level="10"] { background-color: #ECD9FD; }
+  body[data-bonus-level="11"] { background-color: #FBDAE9; }
+
   /* Soft atmospheric background */
   body::before {
     content: ''; position: fixed; inset: 0;
@@ -1424,6 +1437,41 @@
   #gameScreen.has-sheet { padding-bottom: 54px; }
   #gameScreen.has-sheet .words-found { display: none; }
 
+  /* Earned all-tiles bonuses for this round */
+  .bonus-strip {
+    width: 100%; max-width: 480px;
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0; flex-wrap: wrap;
+    padding: 2px 2px 0;
+  }
+  .bonus-strip-label {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800; font-size: 11px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--ink); opacity: 0.55;
+  }
+  .bonus-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .bonus-chip {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800; font-size: 11px;
+    letter-spacing: 0.3px;
+    padding: 2px 9px;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    color: var(--ink);
+    background: var(--surface);
+    box-shadow: 1.5px 1.5px 0 0 var(--shadow-color);
+  }
+  .bonus-chip[data-tier="3"]  { background: var(--c3);  color: #fff; }
+  .bonus-chip[data-tier="4"]  { background: var(--c4);  color: #fff; }
+  .bonus-chip[data-tier="5"]  { background: var(--c5); }
+  .bonus-chip[data-tier="6"]  { background: var(--c6); }
+  .bonus-chip[data-tier="7"]  { background: var(--c7); }
+  .bonus-chip[data-tier="8"]  { background: var(--c8); }
+  .bonus-chip[data-tier="9"]  { background: var(--c9);  color: #fff; }
+  .bonus-chip[data-tier="10"] { background: var(--c10); color: #fff; }
+  .bonus-chip[data-tier="11"] { background: var(--c11); color: #fff; }
+
   .found-sort {
     width: 100%; max-width: 480px;
     display: flex; align-items: center; gap: 6px;
@@ -1991,6 +2039,11 @@
     </div>
   </div>
 
+  <div class="bonus-strip" id="bonusStrip" style="display:none">
+    <span class="bonus-strip-label">Bonuses</span>
+    <span class="bonus-chips" id="bonusChips"></span>
+  </div>
+
   <div class="found-panel" id="foundPanel">
     <button class="found-handle" id="foundHandle" type="button" aria-label="Toggle found words">
       <span class="found-handle-count" id="foundHandleCount">0 words</span>
@@ -2131,7 +2184,7 @@
 
 <div class="all-tiles-banner" id="allTilesBanner">
   <div class="atb-line1">ALL TILES SCORED!</div>
-  <div class="atb-line2">+25 BONUS</div>
+  <div class="atb-line2">+50 BONUS</div>
 </div>
 
 <script>
@@ -3079,9 +3132,10 @@ let bonusScore = 0;
 // first tier is 3 (every tile used, since the shortest word is 3 letters),
 // then 4, 5, 6, … as the weakest tile keeps climbing.
 let allTilesBonusLevel = 0;
-const ALL_TILES_BONUS = 25;   // base bonus for the first tier (all tiles used, >= 3)
-// Tier L (every tile >= L) doubles from the base each step: 25, 50, 100, 200, 400…
-function allTilesBonusForLevel(level) { return ALL_TILES_BONUS * Math.pow(2, level - 3); }
+// Flat bonus per all-tiles tier: reaching "every tile >= 3", ">= 4", ">= 5", …
+// each awards the same fixed amount.
+const ALL_TILES_BONUS = 50;
+function allTilesBonusForLevel(level) { return ALL_TILES_BONUS; }
 
 function computeTotalScore() {
   return cellScores.reduce((a, b) => a + b, 0) + bonusScore;
@@ -3215,6 +3269,8 @@ function newGame(opts) {
   clearTrail();
   refreshSubmitButton();
   updateFoundLayout();
+  applyBonusBackground();   // cream on a fresh board; tier colour when resuming
+  updateBonusStrip();
 }
 
 function refreshSubmitButton() {
@@ -3371,6 +3427,10 @@ function maybeAwardAllTilesBonus() {
 }
 
 function playAllTilesBonus(level, gained) {
+  // Reflect the new tier in the page background and the earned-bonuses strip.
+  applyBonusBackground();
+  updateBonusStrip();
+
   // Banner — reflects the tier reached and the points just awarded.
   const banner = document.getElementById('allTilesBanner');
   if (banner) {
@@ -3418,6 +3478,32 @@ function playAllTilesBonus(level, gained) {
 
   // Persist that the bonus was awarded.
   saveDailyProgress();
+}
+
+// Tint the page background to the highest all-tiles tier reached: cream at
+// the start, then the tier-3 colour once every tile is used, the tier-4
+// colour at all-4s, and so on (capped at the palette's top colour).
+function applyBonusBackground() {
+  if (allTilesBonusLevel >= 3) {
+    document.body.setAttribute('data-bonus-level', String(Math.min(allTilesBonusLevel, 11)));
+  } else {
+    document.body.removeAttribute('data-bonus-level');
+  }
+}
+
+// Show the bonuses earned this round as a chip per tier (e.g. "≥3 +50").
+function updateBonusStrip() {
+  const strip = document.getElementById('bonusStrip');
+  const chips = document.getElementById('bonusChips');
+  if (!strip || !chips) return;
+  if (allTilesBonusLevel < 3) { strip.style.display = 'none'; chips.innerHTML = ''; return; }
+  let html = '';
+  for (let L = 3; L <= allTilesBonusLevel; L++) {
+    html += `<span class="bonus-chip" data-tier="${Math.min(L, 11)}">` +
+            `≥${L} +${allTilesBonusForLevel(L)}</span>`;
+  }
+  chips.innerHTML = html;
+  strip.style.display = '';
 }
 
 function fireConfetti(count) {
