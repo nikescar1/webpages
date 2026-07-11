@@ -124,8 +124,9 @@
   /* ── HOME / MENU ── */
   #homeScreen {
     display: none; flex-direction: column;
-    height: 100%; overflow-y: auto;
-    padding: 20px 16px 36px;
+    align-items: center; justify-content: center;
+    height: 100%; overflow: hidden;
+    padding: 8px 0;
     position: relative; z-index: 1;
   }
   #homeScreen.active { display: flex; }
@@ -150,10 +151,12 @@
   .settings-gear:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
   .settings-gear svg { width: 22px; height: 22px; display: block; }
 
+  /* Fixed-size menu design, uniformly zoomed to fit like the playfield. */
   .home-inner {
-    width: 100%; max-width: 480px;
-    margin: 0 auto;
+    width: 480px;
+    padding: 0 16px;
     display: flex; flex-direction: column; gap: 20px;
+    flex: none;
   }
 
   .home-logo {
@@ -1029,7 +1032,6 @@
   body.tap-mode #playCore .grid-wrap     { order: 2; }
   body.tap-mode #playCore .word-bar      { order: 3; }
   body.tap-mode #playCore .bonus-strip   { order: 4; }
-  body.tap-mode #playCore .found-sort    { order: 5; }
 
   /* One-time hint pointing at the word bar in tap mode. */
   .tap-hint {
@@ -2191,12 +2193,6 @@
       <span class="bonus-chips" id="bonusChips"></span>
     </div>
 
-    <div class="found-sort" id="foundSort" style="display:none">
-      <span class="found-sort-label">Sort</span>
-      <button class="sort-btn active" data-sort="recent">Recent</button>
-      <button class="sort-btn" data-sort="value">Value</button>
-      <span class="words-found" id="wordsFound">0 words found</span>
-    </div>
   </div><!-- /#playCore -->
 
   <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
@@ -2206,6 +2202,12 @@
       <span class="found-handle-count" id="foundHandleCount">0 words</span>
       <span class="found-handle-chevron" id="foundHandleChevron">▲</span>
     </button>
+    <div class="found-sort" id="foundSort" style="display:none">
+      <span class="found-sort-label">Sort</span>
+      <button class="sort-btn active" data-sort="recent">Recent</button>
+      <button class="sort-btn" data-sort="value">Value</button>
+      <span class="words-found" id="wordsFound">0 words found</span>
+    </div>
     <div class="found-words-list" id="foundList"></div>
   </div>
 </div>
@@ -2688,6 +2690,7 @@ function initHome() {
   lbHomeState.dateKey = dk;
   renderHomeLeaderboard();
   refreshHomeLeaderboard();
+  updateHomeLayout();
 }
 
 // State for the inline home leaderboard so prev/next-day nav can walk
@@ -2785,6 +2788,7 @@ function renderHomeLeaderboard() {
   }
   // Always start scrolled to the top so ranks 1-9 (+ your row) are visible.
   listEl.scrollTop = 0;
+  updateHomeLayout();   // content height may have changed → refit
 }
 
 async function refreshHomeLeaderboard() {
@@ -4524,12 +4528,25 @@ document.getElementById('foundHandle').addEventListener('click', () => {
   if (panel.classList.contains('open')) foundListEl.scrollTop = 0;
 });
 
+// Scale the menu to fit, the same way as the playfield.
+function updateHomeLayout() {
+  const hs = document.getElementById('homeScreen');
+  if (!hs || !hs.classList.contains('active')) return;
+  const inner = hs.querySelector('.home-inner');
+  if (!inner) return;
+  inner.style.zoom = '1';
+  const w = inner.offsetWidth, h = inner.offsetHeight;
+  if (!w || !h) return;
+  const zoom = Math.min(hs.clientWidth / w, hs.clientHeight / h, 1);
+  inner.style.zoom = String(Math.max(0.4, zoom));
+}
+
 let foundLayoutTimer = 0;
 window.addEventListener('resize', () => {
   clearTimeout(foundLayoutTimer);
-  foundLayoutTimer = setTimeout(updateFoundLayout, 120);
+  foundLayoutTimer = setTimeout(() => { updateFoundLayout(); updateHomeLayout(); }, 120);
 });
-window.addEventListener('orientationchange', () => setTimeout(updateFoundLayout, 250));
+window.addEventListener('orientationchange', () => setTimeout(() => { updateFoundLayout(); updateHomeLayout(); }, 250));
 
 // ══════════════════════════════════════════════════════════════
 // DAILY AUTO-SUBMIT + LIVE RANK
