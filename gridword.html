@@ -866,7 +866,7 @@
   .header {
     display: flex; align-items: center;
     justify-content: space-between;
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: max(var(--play-size, 480px), 340px);
     gap: 10px;
     position: relative;
   }
@@ -992,14 +992,14 @@
 
   /* ── WORD BAR ── */
   .word-bar {
-    width: 100%; max-width: 480px; height: 56px;
+    width: 100%; max-width: var(--play-size, 480px); height: 56px;
     background: var(--surface);
     border: 3px solid var(--ink);
     border-radius: 16px;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 28px;
+    font-size: clamp(15px, calc(var(--play-size, 480px) * 0.06), 30px);
     letter-spacing: 3px;
     text-transform: uppercase;
     color: var(--ink-faint);
@@ -1118,7 +1118,7 @@
 
   /* Size selector */
   .size-selector {
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: var(--play-size, 480px);
     display: flex; align-items: center; gap: 10px;
     flex-shrink: 0;
   }
@@ -1158,7 +1158,7 @@
   /* ── GRID ── */
   .grid-wrap {
     position: relative;
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: var(--play-size, 480px);
     aspect-ratio: 1; flex-shrink: 0;
     padding: 6px;
     /* Room below the board for the rotate buttons so they never overlap the
@@ -1208,7 +1208,9 @@
   .cell .letter {
     font-family: 'Nunito', sans-serif;
     font-weight: 900;
-    font-size: clamp(15px, 4.4vw, 26px);
+    /* Scale with the actual tile size (board width / grid) so letters stay the
+       same relative size across aspect ratios and board sizes. */
+    font-size: clamp(11px, calc(var(--play-size, 480px) / var(--grid, 8) * 0.44), 30px);
     line-height: 1; color: var(--ink);
     /* Counter-rotate against the board so letters stay upright when the
        board spins. Timing matches .grid's rotation. */
@@ -1220,7 +1222,7 @@
   .cell .pts {
     font-family: 'Nunito', sans-serif;
     font-variant-numeric: tabular-nums;
-    font-size: clamp(10px, 2.5vw, 13px);
+    font-size: clamp(8px, calc(var(--play-size, 480px) / var(--grid, 8) * 0.22), 14px);
     font-weight: 700;
     position: absolute;
     bottom: 1px; right: 4px;
@@ -1493,7 +1495,7 @@
      sheet when vertical space is tight (short phones / short tablets). The
      mode is chosen in JS by measuring the space left for the list. */
   .found-panel {
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: var(--play-size, 480px);
     flex: 1; min-height: 0;
     display: flex; flex-direction: column; align-items: stretch;
   }
@@ -1548,7 +1550,7 @@
 
   /* Earned all-tiles bonuses for this round */
   .bonus-strip {
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: var(--play-size, 480px);
     display: flex; align-items: center; gap: 6px;
     flex-shrink: 0; flex-wrap: wrap;
     padding: 2px 2px 0;
@@ -1582,7 +1584,7 @@
   .bonus-chip[data-tier="11"] { background: var(--c11); color: #fff; }
 
   .found-sort {
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: 100%;
     display: flex; align-items: center; gap: 6px;
     flex-shrink: 0;
     padding: 2px 2px 0;
@@ -1613,7 +1615,7 @@
   }
 
   .found-words-list {
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: 100%;
     flex: 1; min-height: 0;
     overflow-y: auto;
     display: flex; flex-wrap: wrap;
@@ -2248,6 +2250,18 @@
     </div>
     <div class="btn-row">
       <button class="btn btn-submit" id="settingsDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── STANDINGS (rank) POPUP ── -->
+<div class="modal-overlay" id="rankModal">
+  <div class="modal">
+    <h2>STANDINGS</h2>
+    <div class="modal-sub" id="rankModalSub"></div>
+    <div class="modal-lb-list" id="rankLbList"></div>
+    <div class="btn-row">
+      <button class="btn btn-submit" id="rankDoneBtn">Done</button>
     </div>
   </div>
 </div>
@@ -3406,6 +3420,7 @@ function newGame(opts) {
   wordBar.removeAttribute('data-len');
   wordBar.textContent = spellHint();
   clearTrail();
+  hideTapHint();
   refreshSubmitButton();
   updateFoundLayout();
   applyBonusBackground();   // cream on a fresh board; tier colour when resuming
@@ -3807,58 +3822,83 @@ function tapTile(idx) {
   if (path.length === 0) {
     path = [idx];
     haptic(8);
-    highlightPath(); updateWordBar();
-    maybeShowTapHint();   // first-time nudge toward the word bar
+    highlightPath(); updateWordBar(); updateTapHints();
     return;
   }
   const last = path[path.length - 1];
   if (idx === last) {
     path.pop();
     haptic(5);
-    highlightPath(); updateWordBar();
+    highlightPath(); updateWordBar(); updateTapHints();
     return;
   }
   if (isAdjacent(last, idx)) {
     path.push(idx);
     haptic(6);
-    highlightPath(); updateWordBar();
+    highlightPath(); updateWordBar(); updateTapHints();
     return;
   }
   haptic(10);   // not adjacent — reject
 }
 
+// Tapping the word bar: an eligible word is submitted; an ineligible one is
+// cleared. Each action retires its hint permanently.
 function submitCurrentSelection() {
   if (path.length === 0) return;
-  hideTapHint(); markTapHintSeen();
-  const word = path.map(i => grid[i]).join('');
-  submitWord(word, [...path]);
-  path = [];
-  highlightPath();
+  const wLower = path.map(i => grid[i]).join('').toLowerCase();
+  const valid = wLower.length >= 3 && (BOARD_DICT.has(wLower) || DICT.has(wLower));
+  if (valid) {
+    markTapHintDone('submit');
+    submitWord(wLower, [...path]);   // owns its word-bar feedback
+    path = [];
+    highlightPath();
+  } else {
+    markTapHintDone('clear');
+    haptic(6);
+    path = [];
+    highlightPath();
+    updateWordBar();                 // back to the placeholder
+  }
+  hideTapHint();
 }
 
 // Placeholder shown in the word bar when nothing is selected.
 function spellHint() { return tapMode ? 'tap to spell' : 'drag to spell'; }
 
-// One-time hint, shown once ever, pointing at the word bar the first time a
-// player starts a word in tap mode.
-const LS_TAP_HINT_KEY = LS_PREFIX + 'tapHintSeen';
-function maybeShowTapHint() {
-  if (!tapMode) return;
-  try { if (localStorage.getItem(LS_TAP_HINT_KEY) === '1') return; } catch {}
+// Two persistent tap-mode hints, each shown until the player performs its
+// action once (then never again). While a word is selected the hint reflects
+// eligibility: "tap to submit" for a valid word, "tap to clear" otherwise —
+// so it swaps as the selection crosses in/out of validity, and hides when the
+// selection is empty.
+const LS_HINT_SUBMIT_KEY = LS_PREFIX + 'hintSubmitSeen';
+const LS_HINT_CLEAR_KEY  = LS_PREFIX + 'hintClearSeen';
+function hintDone(kind) {
+  try { return localStorage.getItem(kind === 'submit' ? LS_HINT_SUBMIT_KEY : LS_HINT_CLEAR_KEY) === '1'; }
+  catch { return false; }
+}
+function markTapHintDone(kind) {
+  try { localStorage.setItem(kind === 'submit' ? LS_HINT_SUBMIT_KEY : LS_HINT_CLEAR_KEY, '1'); } catch {}
+}
+function updateTapHints() {
   const hint = document.getElementById('tapHint');
   if (!hint) return;
+  if (!tapMode || path.length === 0) { hint.classList.remove('show'); return; }
+  const wLower = path.map(i => grid[i]).join('').toLowerCase();
+  const valid = wLower.length >= 3 && (BOARD_DICT.has(wLower) || DICT.has(wLower));
+  let text = null;
+  if (valid && !hintDone('submit')) text = 'Tap the word to submit';
+  else if (!valid && !hintDone('clear')) text = 'Tap the word to clear';
+  if (!text) { hint.classList.remove('show'); return; }
+  hint.textContent = text;
   const r = wordBar.getBoundingClientRect();
   hint.style.left = Math.round(r.left + r.width / 2) + 'px';
   hint.style.top = Math.round(r.top - 8) + 'px';
   hint.classList.add('show');
-  clearTimeout(hint._hideTimer);
-  hint._hideTimer = setTimeout(hideTapHint, 4500);
 }
 function hideTapHint() {
   const hint = document.getElementById('tapHint');
   if (hint) hint.classList.remove('show');
 }
-function markTapHintSeen() { try { localStorage.setItem(LS_TAP_HINT_KEY, '1'); } catch {} }
 
 function highlightPath() {
   for (let i = 0; i < CELL_COUNT; i++) getCellEl(i).classList.remove('in-path');
@@ -4412,7 +4452,14 @@ function updateFoundLayout() {
   // rotate-button margin, gaps, and at least the found-sheet handle.
   const reserve = chrome + 56 /*rotate margin*/ + 46 /*gaps+padding*/ + 54 /*sheet handle*/;
   const boardCap = Math.max(180, Math.min(480, vh - reserve));
-  gridWrap.style.maxWidth = boardCap + 'px';
+  // The whole play column (board, word bar, sort row, list, …) shares this
+  // width so every element stays the same size relative to the board across
+  // aspect ratios. --grid lets tile fonts scale with the tile size.
+  const containerW = gs.clientWidth - 24;   // minus #gameScreen horizontal padding
+  const playSize = Math.min(containerW, boardCap);
+  gs.style.setProperty('--play-size', playSize + 'px');
+  gs.style.setProperty('--grid', String(GRID_SIZE));
+  gridWrap.style.maxWidth = playSize + 'px';
 
   // Space left for an inline list, using the now-capped board size.
   const boardOuter = gridWrap.offsetHeight + 56;
@@ -4506,7 +4553,49 @@ async function postDailyScore() {
   }
 }
 
-document.getElementById('rankChip').onclick = () => exitToHome();
+// The rank chip opens a compact standings popup over the playfield — it does
+// not leave the game.
+function openRankModal() {
+  if (MODE !== 'daily') return;
+  document.getElementById('rankModalSub').textContent = formatDateLong(DAILY_DATE);
+  const listEl = document.getElementById('rankLbList');
+  const myName = getStoredName().toUpperCase();
+  const myScore = computeTotalScore();
+
+  const list = (dailyLbList || []).map(e => ({ n: (e.n || '').toUpperCase(), s: e.s || 0 }));
+  list.sort((a, b) => b.s - a.s);
+  // Reflect the player's *current* standing, even if it hasn't posted yet.
+  let mine = myName ? list.find(e => e.n === myName) : null;
+  if (mine) { if (myScore > mine.s) mine.s = myScore; mine.me = true; }
+  else if (myScore > 0) {
+    mine = { n: myName || 'YOU', s: myScore, me: true };
+    list.push(mine);
+  }
+  list.sort((a, b) => b.s - a.s);
+
+  listEl.innerHTML = '';
+  if (!list.length) {
+    listEl.innerHTML = '<div class="lb-empty" style="text-align:center">No scores yet — be first!</div>';
+  } else {
+    list.slice(0, 20).forEach((e, i) => {
+      const row = document.createElement('div');
+      row.className = 'lb-row' + (e.me ? ' is-you' : '');
+      row.innerHTML =
+        `<span class="lb-rank">#${i + 1}</span>` +
+        `<span class="lb-name${e.me ? ' is-you' : ''}">${e.n || '—'}</span>` +
+        `<span class="lb-score">${e.s}</span>`;
+      listEl.appendChild(row);
+    });
+  }
+  document.getElementById('rankModal').classList.add('show');
+}
+function closeRankModal() { document.getElementById('rankModal').classList.remove('show'); }
+
+document.getElementById('rankChip').onclick = openRankModal;
+document.getElementById('rankDoneBtn').onclick = closeRankModal;
+document.getElementById('rankModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('rankModal')) closeRankModal();
+});
 
 // ══════════════════════════════════════════════════════════════
 // SUBMIT BOARD (legacy modal — retained but no longer triggered)
