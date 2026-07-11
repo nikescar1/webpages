@@ -856,17 +856,29 @@
   /* ── GAME LAYOUT ── */
   #gameScreen {
     display: none; flex-direction: column;
-    align-items: center; justify-content: center;
+    align-items: center; justify-content: flex-start;
     height: 100%;
-    padding: 10px 12px 8px; gap: 10px;
+    padding: 6px 0 4px; gap: 6px;
     position: relative; z-index: 1;
+    overflow: hidden;
   }
   #gameScreen.active { display: flex; }
+
+  /* The whole playfield is a fixed-size design that's uniformly zoomed to fit
+     the screen (set in JS), so every element — tiles, borders, fonts — stays
+     the same size relative to the board at any aspect ratio. */
+  #playCore {
+    width: 504px;
+    padding: 0 12px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+    flex: none;
+  }
 
   .header {
     display: flex; align-items: center;
     justify-content: space-between;
-    width: 100%; max-width: max(var(--play-size, 480px), 340px);
+    width: 100%; max-width: 480px;
     gap: 10px;
     position: relative;
   }
@@ -992,14 +1004,14 @@
 
   /* ── WORD BAR ── */
   .word-bar {
-    width: 100%; max-width: var(--play-size, 480px); height: 56px;
+    width: 100%; max-width: 480px; height: 56px;
     background: var(--surface);
     border: 3px solid var(--ink);
     border-radius: 16px;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: clamp(15px, calc(var(--play-size, 480px) * 0.06), 30px);
+    font-size: 28px;
     letter-spacing: 3px;
     text-transform: uppercase;
     color: var(--ink-faint);
@@ -1012,13 +1024,12 @@
      (under the rotate buttons) via flex order — it's the last thing you touch. */
   body.tap-mode .word-bar { cursor: pointer; }
   body.tap-mode .word-bar:active { transform: translateY(1px); }
-  body.tap-mode #gameScreen .header       { order: 0; }
-  body.tap-mode #gameScreen .size-selector { order: 1; }
-  body.tap-mode #gameScreen .grid-wrap     { order: 2; }
-  body.tap-mode #gameScreen .word-bar      { order: 3; }
-  body.tap-mode #gameScreen .info-bar      { order: 4; }
-  body.tap-mode #gameScreen .bonus-strip   { order: 5; }
-  body.tap-mode #gameScreen .found-panel   { order: 6; }
+  body.tap-mode #playCore .header       { order: 0; }
+  body.tap-mode #playCore .size-selector { order: 1; }
+  body.tap-mode #playCore .grid-wrap     { order: 2; }
+  body.tap-mode #playCore .word-bar      { order: 3; }
+  body.tap-mode #playCore .bonus-strip   { order: 4; }
+  body.tap-mode #playCore .found-sort    { order: 5; }
 
   /* One-time hint pointing at the word bar in tap mode. */
   .tap-hint {
@@ -1118,7 +1129,7 @@
 
   /* Size selector */
   .size-selector {
-    width: 100%; max-width: var(--play-size, 480px);
+    width: 100%; max-width: 480px;
     display: flex; align-items: center; gap: 10px;
     flex-shrink: 0;
   }
@@ -1158,7 +1169,7 @@
   /* ── GRID ── */
   .grid-wrap {
     position: relative;
-    width: 100%; max-width: var(--play-size, 480px);
+    width: 100%; max-width: 480px;
     aspect-ratio: 1; flex-shrink: 0;
     padding: 6px;
     /* Room below the board for the rotate buttons so they never overlap the
@@ -1210,7 +1221,7 @@
     font-weight: 900;
     /* Scale with the actual tile size (board width / grid) so letters stay the
        same relative size across aspect ratios and board sizes. */
-    font-size: clamp(11px, calc(var(--play-size, 480px) / var(--grid, 8) * 0.44), 30px);
+    font-size: calc(480px / var(--grid, 8) * 0.44);
     line-height: 1; color: var(--ink);
     /* Counter-rotate against the board so letters stay upright when the
        board spins. Timing matches .grid's rotation. */
@@ -1222,7 +1233,7 @@
   .cell .pts {
     font-family: 'Nunito', sans-serif;
     font-variant-numeric: tabular-nums;
-    font-size: clamp(8px, calc(var(--play-size, 480px) / var(--grid, 8) * 0.22), 14px);
+    font-size: calc(480px / var(--grid, 8) * 0.22);
     font-weight: 700;
     position: absolute;
     bottom: 1px; right: 4px;
@@ -1495,7 +1506,7 @@
      sheet when vertical space is tight (short phones / short tablets). The
      mode is chosen in JS by measuring the space left for the list. */
   .found-panel {
-    width: 100%; max-width: var(--play-size, 480px);
+    width: 100%; max-width: 480px;
     flex: 1; min-height: 0;
     display: flex; flex-direction: column; align-items: stretch;
   }
@@ -1550,7 +1561,7 @@
 
   /* Earned all-tiles bonuses for this round */
   .bonus-strip {
-    width: 100%; max-width: var(--play-size, 480px);
+    width: 100%; max-width: 480px;
     display: flex; align-items: center; gap: 6px;
     flex-shrink: 0; flex-wrap: wrap;
     padding: 2px 2px 0;
@@ -1584,7 +1595,7 @@
   .bonus-chip[data-tier="11"] { background: var(--c11); color: #fff; }
 
   .found-sort {
-    width: 100%; max-width: 100%;
+    width: 100%; max-width: 480px;
     display: flex; align-items: center; gap: 6px;
     flex-shrink: 0;
     padding: 2px 2px 0;
@@ -2112,6 +2123,7 @@
 </div>
 
 <div id="gameScreen">
+  <div id="playCore">
   <div class="header">
     <div class="header-side header-left">
       <button class="back-btn" id="backBtn" title="Back">←</button>
@@ -2171,24 +2183,26 @@
     <button class="btn btn-reset new-board-btn" id="newBoardBtn">New Board</button>
   </div>
 
-  <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
+    <div class="bonus-strip" id="bonusStrip" style="display:none">
+      <span class="bonus-strip-label">Bonuses</span>
+      <span class="bonus-chips" id="bonusChips"></span>
+    </div>
 
-  <div class="bonus-strip" id="bonusStrip" style="display:none">
-    <span class="bonus-strip-label">Bonuses</span>
-    <span class="bonus-chips" id="bonusChips"></span>
-  </div>
-
-  <div class="found-panel" id="foundPanel">
-    <button class="found-handle" id="foundHandle" type="button" aria-label="Toggle found words">
-      <span class="found-handle-count" id="foundHandleCount">0 words</span>
-      <span class="found-handle-chevron" id="foundHandleChevron">▲</span>
-    </button>
     <div class="found-sort" id="foundSort" style="display:none">
       <span class="found-sort-label">Sort</span>
       <button class="sort-btn active" data-sort="recent">Recent</button>
       <button class="sort-btn" data-sort="value">Value</button>
       <span class="words-found" id="wordsFound">0 words found</span>
     </div>
+  </div><!-- /#playCore -->
+
+  <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
+
+  <div class="found-panel" id="foundPanel">
+    <button class="found-handle" id="foundHandle" type="button" aria-label="Toggle found words">
+      <span class="found-handle-count" id="foundHandleCount">0 words</span>
+      <span class="found-handle-chevron" id="foundHandleChevron">▲</span>
+    </button>
     <div class="found-words-list" id="foundList"></div>
   </div>
 </div>
@@ -3927,14 +3941,19 @@ function updateWordBar() {
   wordBar.textContent = word;
 }
 
+// The playfield is zoomed by `playZoom`. getBoundingClientRect returns zoomed
+// (screen) coordinates, but the trail SVG lives inside the zoomed board and
+// uses the board's own un-zoomed coordinate space — so screen offsets are
+// divided back by the zoom to place the trail correctly.
+let playZoom = 1;
 function getCellCenter(idx) {
   const cell = getCellEl(idx);
   const wrap = document.getElementById('gridWrap');
   const wr = wrap.getBoundingClientRect();
   const cr = cell.getBoundingClientRect();
   return {
-    x: cr.left + cr.width / 2 - wr.left,
-    y: cr.top + cr.height / 2 - wr.top
+    x: (cr.left + cr.width / 2 - wr.left) / playZoom,
+    y: (cr.top + cr.height / 2 - wr.top) / playZoom
   };
 }
 
@@ -3972,8 +3991,8 @@ function drawTrail() {
 
   if (isDragging && pts.length >= 1) {
     const last = pts[pts.length - 1];
-    const px = pointerX - wr.left;
-    const py = pointerY - wr.top;
+    const px = (pointerX - wr.left) / playZoom;
+    const py = (pointerY - wr.top) / playZoom;
     const live = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     live.setAttribute('x1', last.x); live.setAttribute('y1', last.y);
     live.setAttribute('x2', px); live.setAttribute('y2', py);
@@ -4441,31 +4460,43 @@ function measureH(sel) {
 function updateFoundLayout() {
   const gs = document.getElementById('gameScreen');
   if (!gs || !gs.classList.contains('active')) return;
+  const core = document.getElementById('playCore');
   const panel = document.getElementById('foundPanel');
+  if (!core) return;
 
-  const vh = gs.clientHeight;
-  // Chrome around the board (independent of the board's own size).
-  const chrome = measureH('.header') + measureH('.word-bar') + measureH('#sizeSelector');
-
-  // Cap the board by available height so it can't overflow on short / square
-  // screens (it's otherwise sized by width alone). Leaves room for the
-  // rotate-button margin, gaps, and at least the found-sheet handle.
-  const reserve = chrome + 56 /*rotate margin*/ + 46 /*gaps+padding*/ + 54 /*sheet handle*/;
-  const boardCap = Math.max(180, Math.min(480, vh - reserve));
-  // The whole play column (board, word bar, sort row, list, …) shares this
-  // width so every element stays the same size relative to the board across
-  // aspect ratios. --grid lets tile fonts scale with the tile size.
-  const containerW = gs.clientWidth - 24;   // minus #gameScreen horizontal padding
-  const playSize = Math.min(containerW, boardCap);
-  gs.style.setProperty('--play-size', playSize + 'px');
   gs.style.setProperty('--grid', String(GRID_SIZE));
-  gridWrap.style.maxWidth = playSize + 'px';
 
-  // Space left for an inline list, using the now-capped board size.
-  const boardOuter = gridWrap.offsetHeight + 56;
-  const avail = vh - chrome - boardOuter - 68;
+  const vw = gs.clientWidth;
+  const vh = gs.clientHeight;
 
-  const needSheet = avail < FOUND_SHEET_MIN;
+  // Measure the fixed-design play-core at zoom 1, then zoom it to fit.
+  core.style.zoom = '1';
+  const coreW = core.offsetWidth;    // ~504
+  const coreH = core.offsetHeight;   // varies by mode / found-sort presence
+  if (!coreW || !coreH) return;
+
+  const LIST_MIN = FOUND_SHEET_MIN, HANDLE = 50, GAP = 8;
+  const zoomW = Math.min(vw / coreW, 1);   // never enlarge past the reference design
+  const inlineLeftover = vh - coreH * zoomW - GAP;
+  let zoom, needSheet;
+  if (inlineLeftover >= LIST_MIN) {
+    // Fits with room to spare — inline found list below the board.
+    zoom = zoomW;
+    needSheet = false;
+  } else {
+    // Not enough height for an inline list — zoom to fit and slide the list
+    // out as a bottom sheet (the one allowed exception).
+    needSheet = true;
+    zoom = Math.min(zoomW, (vh - HANDLE) / coreH);
+  }
+  zoom = Math.max(0.3, zoom);
+  core.style.zoom = String(zoom);
+  playZoom = zoom;
+
+  // The found panel (not zoomed) matches the zoomed board width when inline;
+  // in sheet mode it's a full-width slide-out.
+  panel.style.maxWidth = needSheet ? '' : Math.round(480 * zoom) + 'px';
+
   const wasSheet = panel.classList.contains('sheet');
   gs.classList.toggle('has-sheet', needSheet);
   if (needSheet) {
