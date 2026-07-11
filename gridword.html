@@ -1547,6 +1547,9 @@
   }
   .found-handle-chevron { font-size: 11px; opacity: 0.6; transition: transform 0.3s; }
   .found-panel.sheet.open .found-handle-chevron { transform: rotate(180deg); }
+  /* When expanded, the sort row's "N words found" is visible, so the count
+     next to the arrow is redundant — hide it and keep just the chevron. */
+  .found-panel.sheet.open .found-handle-count { display: none; }
   .found-handle.pulse { animation: foundHandlePulse 0.5s ease; }
   @keyframes foundHandlePulse {
     0%, 100% { transform: translateY(0); }
