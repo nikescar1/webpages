@@ -5458,24 +5458,21 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
    gridword-3d — jeweled tile layer (three.js)
    One faceted gem (PrincessCut mesh, ported FX/Gem_CameraSpace shader) per
    board cell, on a WebGL canvas behind the static DOM letters. Unused tiles are
-   opaque chrome; when a word is submitted, the used tiles flip in the swipe
-   direction (staggered, with the Unity glass chime pitched per tile) and become
-   translucent glittering jewels. All look/feel params are live-tweakable via a
-   debug panel with JSON export/import (localStorage-persisted).
-   Bare globals used: gridEl, CELL_COUNT, cellScores, path, getCellEl,
-   renderGrid, updateCellDisplay, highlightPath. Inlined assets: GEM_POS_B64,
-   GEM_NRM_B64, ENV_DATAURI, FLIP_SOUND_URI.
+   opaque chrome; used tiles flip in the swipe direction (staggered, with the
+   Unity glass chime pitched per tile) into translucent glittering jewels.
+   Jewels render in two passes (interior back faces + front "fire") so the inner
+   facets are visible. All look/feel params are live-tweakable via a debug panel
+   with JSON export/import (localStorage-persisted).
+   Bare globals: gridEl, CELL_COUNT, cellScores, path, getCellEl, renderGrid,
+   updateCellDisplay, highlightPath. Inlined: GEM_POS_B64, GEM_NRM_B64,
+   ENV_DATAURI, FLIP_SOUND_URI.
    ========================================================================== */
 (function () {
   'use strict';
   const THREE = window.THREE;
   const AXIS_Y = new THREE.Vector3(0, 1, 0);
 
-  function b64ToBytes(b64) {
-    const bin = atob(b64), bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes;
-  }
+  function b64ToBytes(b64){ const bin = atob(b64), a = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); return a; }
   const b64ToF32 = (b64) => new Float32Array(b64ToBytes(b64).buffer);
 
   const MAX_INSTANCES = 100;
@@ -5486,13 +5483,13 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     8:'#38BDF8',9:'#6366F1',10:'#A855F7',11:'#EC4899'};
   function colorForScore(s){ if (s<3) return null; if (s>=12) return '#C77DFF'; return PALETTE[s]||'#A855F7'; }
 
-  // ---- tunable settings (defaults reproduce the current look) --------------
+  // ---- tunable settings ----------------------------------------------------
   const DEFAULTS = {
-    metal: { envLight: 1.0, refl: 1.0, fresPow: 3.0, shimmer: 0.04, color: '#d1d6e5' },
-    jewel: { envLight: 1.0, refl: 1.0, fresPow: 3.0, emission: 0.5, alpha: 0.72, rimAlpha: 0.4 },
-    glitter: { amount: 1.3, scale: 0.30, scroll: 0.8, twinkle: 6.0, threshold: 0.92 },
-    select: { base: 0.30, fres: 0.30 },
-    shape: { gemScale: 0.99 },
+    metal: { envLight: 0, refl: 0.64, fresPow: 0.2, shimmer: 0.04, color: '#d1d6e5' },
+    jewel: { envLight: 0, refl: 0.67, fresPow: 8, emission: 0.98, alpha: 1, rimAlpha: 1 },
+    glitter: { amount: 1.3, scale: 0.67, scroll: 0.8, twinkle: 6, threshold: 0.99 },
+    select: { base: 0.3, fres: 0.3 },
+    shape: { gemScale: 1 },
     flip: { durationMs: 560, degrees: 360, staggerMs: 60, bump: 0.12, axisFromSwipe: true, invert: false },
     sound: { on: true, volume: 0.7, pitchBase: 0.75, pitchStep: 0.05 },
   };
@@ -5504,12 +5501,12 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     { p: 'metal.shimmer', l: 'Shimmer', min: 0, max: 0.5, s: 0.005 },
     { p: 'metal.color', l: 'Base color', t: 'color' },
     { g: 'Jewel (used tiles)' },
-    { p: 'jewel.envLight', l: 'Env light', min: 0, max: 3, s: 0.01 },
+    { p: 'jewel.envLight', l: 'Interior env light', min: 0, max: 3, s: 0.01 },
     { p: 'jewel.refl', l: 'Reflection', min: 0, max: 4, s: 0.01 },
     { p: 'jewel.fresPow', l: 'Fresnel power', min: 0.2, max: 8, s: 0.05 },
     { p: 'jewel.emission', l: 'Emission/glow', min: 0, max: 3, s: 0.01 },
-    { p: 'jewel.alpha', l: 'Transparency (alpha)', min: 0, max: 1, s: 0.01 },
-    { p: 'jewel.rimAlpha', l: 'Rim opacity boost', min: 0, max: 1, s: 0.01 },
+    { p: 'jewel.alpha', l: 'Interior opacity', min: 0, max: 1, s: 0.01 },
+    { p: 'jewel.rimAlpha', l: 'Front/edge strength', min: 0, max: 1, s: 0.01 },
     { g: 'Jewel glitter' },
     { p: 'glitter.amount', l: 'Sparkle amount', min: 0, max: 4, s: 0.02 },
     { p: 'glitter.scale', l: 'Sparkle grain', min: 0.05, max: 1, s: 0.01 },
@@ -5538,13 +5535,13 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
   function deepMerge(dst, src){ for (const k in src){ if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k])){ dst[k] = dst[k] || {}; deepMerge(dst[k], src[k]); } else dst[k] = src[k]; } return dst; }
   function getPath(o, p){ return p.split('.').reduce((a, k) => a[k], o); }
   function setPath(o, p, v){ const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
-
-  let settings = deepMerge(deepClone(DEFAULTS), loadSettings());
+  const settings = deepMerge(deepClone(DEFAULTS), loadSettings());
   function loadSettings(){ try { return JSON.parse(localStorage.getItem('gw3d-settings') || '{}'); } catch (e) { return {}; } }
   function saveSettings(){ try { localStorage.setItem('gw3d-settings', JSON.stringify(settings)); } catch (e) {} }
 
   const G = {
-    ok: false, built: false, renderer: null, scene: null, camera: null, mesh: null, u: null,
+    ok: false, built: false, renderer: null, scene: null, camera: null, geo: null, u: null,
+    meshBack: null, meshFront: null, mesh: null,
     envCube: null, canvas: null, count: 0, W: 0, H: 0, scaleVal: 1, lastFrame: 0,
     aColor: null, aEmit: null, aMetal: null, aAlpha: null, aSel: null,
     cx: new Float32Array(MAX_INSTANCES), cy: new Float32Array(MAX_INSTANCES),
@@ -5555,7 +5552,6 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
         _rz = new THREE.Matrix4().makeRotationZ(Math.PI / 4), _s = new THREE.Matrix4(),
         _col = new THREE.Color(), _axis = new THREE.Vector3();
 
-  // ---- shader (ported gem, per-instance colour + metal/jewel uniforms) -----
   const VERT = `
     precision highp float;
     attribute vec3 aColor; attribute float aEmit; attribute float aMetal;
@@ -5570,6 +5566,8 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
       vN = normalize(mat3(modelMatrix) * mat3(im) * normal);
       gl_Position = projectionMatrix * viewMatrix * wp;
     }`;
+  // Two passes: BACK = jewel interior (back faces, alpha blend); FRONT = metal
+  // (opaque) or the jewel "fire" layer (fresnel-alpha so the interior shows).
   const FRAG = `
     precision highp float;
     uniform samplerCube envMap; uniform float uTime;
@@ -5587,33 +5585,42 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
       vec3 R = reflect(-V, N);
       vec3 env = textureCube(envMap, R).rgb;
       float ndv = clamp(dot(N, V), 0.0, 1.0);
-      vec3 col; float alpha;
-      if (vMetal > 0.5) {
+      float sel = vSel * (selBase + selFres * pow(1.0 - ndv, 2.0));
+    #ifdef PASS_BACK
+      if (vMetal > 0.5) discard;                       // jewel interior only
+      float fres = pow(1.0 - ndv, jFresPow);
+      vec3 col = env * vCol * (jEnvLight + jRefl * 0.5) + vCol * jEmission * vEmit;
+      col += vCol * 0.15 * fres;                        // gentle inner-facet edges
+      col += sel;
+      gl_FragColor = vec4(col, clamp(jAlpha, 0.05, 1.0));
+    #else
+      if (vMetal > 0.5) {                               // opaque chrome
         float fres = pow(1.0 - ndv, mFresPow);
-        col = env * mColor * mEnvLight + env * mRefl * (0.5 + fres);
+        vec3 col = env * mColor * mEnvLight + env * mRefl * (0.5 + fres);
         col *= 1.0 + mShimmer * sin(uTime * 2.0 + vWP.x * 0.05 + vWP.y * 0.07);
-        alpha = 1.0;
-      } else {
+        col += sel;
+        gl_FragColor = vec4(col, 1.0);
+      } else {                                          // jewel front "fire"
         float fres = pow(1.0 - ndv, jFresPow);
-        col = env * vCol * jEnvLight + env * jRefl * (0.5 + fres) + vCol * jEmission * vEmit;
+        vec3 col = env * jRefl * (0.5 + fres);
         vec2 g = gl_FragCoord.xy * gScale + vec2(uTime * gScroll, uTime * gScroll * 0.6);
         float nz = hash21(floor(g));
         float tw = 0.5 + 0.5 * sin(uTime * gTwinkle + nz * 62.83);
         float spark = smoothstep(gThresh, 1.0, nz) * tw * (0.35 + fres);
         col += spark * gAmt * (1.0 + 0.5 * vCol);
-        alpha = clamp(jAlpha + fres * jRim, 0.0, 1.0);
+        col += vCol * jRim * fres;
+        col += sel;
+        float a = clamp(fres * (0.45 + 0.55 * jRim) + spark * gAmt + sel, 0.0, 1.0);
+        gl_FragColor = vec4(col, a);
       }
-      col += vSel * (selBase + selFres * pow(1.0 - ndv, 2.0));
-      gl_FragColor = vec4(col, alpha);
+    #endif
     }`;
 
   function initGL() {
     const wrap = document.getElementById('gridWrap');
     if (!wrap) return false;
-    const canvas = document.createElement('canvas');
-    canvas.id = 'gemCanvas';
-    wrap.insertBefore(canvas, wrap.firstChild);
-    G.canvas = canvas;
+    const canvas = document.createElement('canvas'); canvas.id = 'gemCanvas';
+    wrap.insertBefore(canvas, wrap.firstChild); G.canvas = canvas;
     let renderer;
     try { renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: false }); }
     catch (e) { return false; }
@@ -5626,10 +5633,10 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     G.camera = new THREE.OrthographicCamera(0, 1, 0, -1, -1000, 1000);
     G.camera.position.set(0, 0, 200); G.camera.lookAt(0, 0, 0);
 
-    const geo = new THREE.BufferGeometry();
+    const geo = new THREE.BufferGeometry(); G.geo = geo;
     geo.setAttribute('position', new THREE.BufferAttribute(b64ToF32(window.GEM_POS_B64), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(b64ToF32(window.GEM_NRM_B64), 3));
-    geo.rotateX(Math.PI / 2);                       // flat table faces the camera
+    geo.rotateX(Math.PI / 2);                          // flat table faces camera
     G.aColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 3), 3);
     G.aEmit  = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES), 1);
     G.aMetal = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES).fill(1), 1);
@@ -5640,18 +5647,21 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
 
     G.u = {
       envMap: { value: null }, uTime: { value: 0 },
-      mEnvLight: { value: 1 }, mRefl: { value: 1 }, mFresPow: { value: 3 }, mShimmer: { value: 0.04 }, mColor: { value: new THREE.Color('#d1d6e5') },
-      jEnvLight: { value: 1 }, jRefl: { value: 1 }, jFresPow: { value: 3 }, jEmission: { value: 0.5 }, jAlpha: { value: 0.72 }, jRim: { value: 0.4 },
-      gAmt: { value: 1.3 }, gScale: { value: 0.3 }, gScroll: { value: 0.8 }, gTwinkle: { value: 6 }, gThresh: { value: 0.92 },
+      mEnvLight: { value: 0 }, mRefl: { value: 0.64 }, mFresPow: { value: 0.2 }, mShimmer: { value: 0.04 }, mColor: { value: new THREE.Color('#d1d6e5') },
+      jEnvLight: { value: 0 }, jRefl: { value: 0.67 }, jFresPow: { value: 8 }, jEmission: { value: 0.98 }, jAlpha: { value: 1 }, jRim: { value: 1 },
+      gAmt: { value: 1.3 }, gScale: { value: 0.67 }, gScroll: { value: 0.8 }, gTwinkle: { value: 6 }, gThresh: { value: 0.99 },
       selBase: { value: 0.3 }, selFres: { value: 0.3 },
     };
-    const mat = new THREE.ShaderMaterial({
-      vertexShader: VERT, fragmentShader: FRAG, uniforms: G.u,
-      transparent: true, side: THREE.DoubleSide, depthTest: true, depthWrite: true,
+    const mkMat = (define, side) => new THREE.ShaderMaterial({
+      vertexShader: VERT, fragmentShader: FRAG, uniforms: G.u, defines: define,
+      transparent: true, side, depthTest: true, depthWrite: false, blending: THREE.NormalBlending,
     });
-    G.mesh = new THREE.InstancedMesh(geo, mat, MAX_INSTANCES);
-    G.mesh.frustumCulled = false; G.mesh.count = 0;
-    G.scene.add(G.mesh);
+    const matBack = mkMat({ PASS_BACK: '' }, THREE.BackSide);
+    const matFront = mkMat({}, THREE.FrontSide);
+    G.meshBack = new THREE.InstancedMesh(geo, matBack, MAX_INSTANCES); G.meshBack.renderOrder = 0;
+    G.meshFront = new THREE.InstancedMesh(geo, matFront, MAX_INSTANCES); G.meshFront.renderOrder = 1;
+    G.mesh = G.meshFront;
+    for (const m of [G.meshBack, G.meshFront]) { m.frustumCulled = false; m.count = 0; G.scene.add(m); }
     applySettings();
 
     new THREE.TextureLoader().load(window.ENV_DATAURI, (tex) => {
@@ -5678,7 +5688,6 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     scheduleRender();
   }
 
-  // ---- render (coalesced, works without rAF) ------------------------------
   let renderScheduled = false;
   function renderOnce() { if (G.ok && G.envCube) G.renderer.render(G.scene, G.camera); }
   function scheduleRender() { if (renderScheduled) return; renderScheduled = true; setTimeout(() => { renderScheduled = false; syncRotation(); renderOnce(); }, 0); }
@@ -5702,8 +5711,9 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     _rf.makeRotationAxis(axis || AXIS_Y, angle || 0);
     _t.makeTranslation(G.cx[idx], -G.cy[idx], 0);
     _m.copy(_t).multiply(_rf).multiply(_rz).multiply(_s);
-    G.mesh.setMatrixAt(idx, _m);
+    G.meshBack.setMatrixAt(idx, _m); G.meshFront.setMatrixAt(idx, _m);
   }
+  function matrixDirty() { G.meshBack.instanceMatrix.needsUpdate = true; G.meshFront.instanceMatrix.needsUpdate = true; }
 
   function buildInstances() {
     if (!G.ok) return;
@@ -5722,7 +5732,7 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
       G.cy[i] = cell.offsetTop + cell.offsetHeight / 2;
       setInstMatrix(i, AXIS_Y, 0, 1);
     }
-    G.mesh.count = n; G.mesh.instanceMatrix.needsUpdate = true; G.count = n;
+    G.meshBack.count = n; G.meshFront.count = n; matrixDirty(); G.count = n;
     for (let i = 0; i < n; i++) syncCell(i);
     G.built = true; scheduleRender();
   }
@@ -5742,17 +5752,16 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     G.aColor.needsUpdate = G.aMetal.needsUpdate = G.aAlpha.needsUpdate = G.aEmit.needsUpdate = true;
   }
 
-  // Flip axis from the local swipe direction at this tile (perp. to travel).
   function axisForIdx(idx) {
     if (!settings.flip.axisFromSwipe) return AXIS_Y.clone();
-    const lp = G.lastPath; const o = lp.indexOf(idx);
+    const lp = G.lastPath, o = lp.indexOf(idx);
     let a, b;
     if (o > 0) { a = lp[o - 1]; b = idx; }
     else if (o === 0 && lp.length > 1) { a = idx; b = lp[1]; }
     else return AXIS_Y.clone();
-    const dx = G.cx[b] - G.cx[a], dy = -(G.cy[b] - G.cy[a]);   // world dir (y up)
+    const dx = G.cx[b] - G.cx[a], dy = -(G.cy[b] - G.cy[a]);
     if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) return AXIS_Y.clone();
-    _axis.set(-dy, dx, 0).normalize();                         // perpendicular in screen plane
+    _axis.set(-dy, dx, 0).normalize();
     if (settings.flip.invert) _axis.multiplyScalar(-1);
     return _axis.clone();
   }
@@ -5761,9 +5770,9 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     const order = Math.max(0, G.lastPath.indexOf(idx));
     const f = { t0: perfNow() + order * settings.flip.staggerMs, applied: false, sounded: false, order, axis: axisForIdx(idx) };
     G.flip[idx] = f;
-    const dur = settings.flip.durationMs;
-    setTimeout(() => { if (G.flip[idx] === f && !f.applied) { f.applied = true; syncCell(idx); scheduleRender(); } }, order * settings.flip.staggerMs + dur * 0.5);
-    setTimeout(() => { if (G.flip[idx] === f) { syncCell(idx); delete G.flip[idx]; setInstMatrix(idx, AXIS_Y, 0, 1); G.mesh.instanceMatrix.needsUpdate = true; scheduleRender(); } }, order * settings.flip.staggerMs + dur + 30);
+    const dur = settings.flip.durationMs, off = order * settings.flip.staggerMs;
+    setTimeout(() => { if (G.flip[idx] === f && !f.applied) { f.applied = true; syncCell(idx); scheduleRender(); } }, off + dur * 0.5);
+    setTimeout(() => { if (G.flip[idx] === f) { syncCell(idx); delete G.flip[idx]; setInstMatrix(idx, AXIS_Y, 0, 1); matrixDirty(); scheduleRender(); } }, off + dur + 30);
   }
   function perfNow(){ return (window.performance && performance.now) ? performance.now() : Date.now(); }
 
@@ -5779,29 +5788,29 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
   function loop(now) {
     if (!G.ok) return;
     requestAnimationFrame(loop);
-    if (now - G.lastFrame < FRAME_MS - 0.5) return;   // 60fps cap
+    if (now - G.lastFrame < FRAME_MS - 0.5) return;
     G.lastFrame = now;
     const gs = document.getElementById('gameScreen');
     if (!(gs && gs.classList.contains('active') && G.envCube)) return;
     const maxAngle = settings.flip.degrees * Math.PI / 180;
-    let matDirty = false;
+    let dirty = false;
     for (const k in G.flip) {
       const idx = +k, f = G.flip[idx];
       const t = (now - f.t0) / settings.flip.durationMs;
-      if (t < 0) { setInstMatrix(idx, AXIS_Y, 0, 1); matDirty = true; continue; }   // waiting its turn
+      if (t < 0) { setInstMatrix(idx, AXIS_Y, 0, 1); dirty = true; continue; }
       if (!f.sounded) { f.sounded = true; playFlip(f.order); }
-      if (t >= 1) { syncCell(idx); setInstMatrix(idx, AXIS_Y, 0, 1); delete G.flip[idx]; matDirty = true; continue; }
+      if (t >= 1) { syncCell(idx); setInstMatrix(idx, AXIS_Y, 0, 1); delete G.flip[idx]; dirty = true; continue; }
       if (t >= 0.5 && !f.applied) { f.applied = true; syncCell(idx); }
       setInstMatrix(idx, f.axis, t * maxAngle, 1 + settings.flip.bump * Math.sin(t * Math.PI));
-      matDirty = true;
+      dirty = true;
     }
-    if (matDirty) G.mesh.instanceMatrix.needsUpdate = true;
+    if (dirty) matrixDirty();
     G.u.uTime.value = now * 0.001;
     syncRotation();
     G.renderer.render(G.scene, G.camera);
   }
 
-  // ---- sound (Unity glass chime, per-tile pitch) --------------------------
+  // ---- sound --------------------------------------------------------------
   let audioCtx = null, flipBuf = null;
   function initAudio() {
     if (audioCtx) return;
@@ -5842,11 +5851,10 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
   function exportJSON(){ return JSON.stringify(settings, null, 2); }
   function applyJSON(txt){ const o = JSON.parse(txt); deepMerge(settings, o); clampSettings(); applySettings(); buildInstances(); saveSettings(); if (G.panelRefresh) G.panelRefresh(); }
   function resetSettings(){ for (const k in settings) delete settings[k]; deepMerge(settings, deepClone(DEFAULTS)); applySettings(); buildInstances(); saveSettings(); if (G.panelRefresh) G.panelRefresh(); }
-  function clampSettings(){ for (const it of SCHEMA){ if (!it.p || it.t === 'check' || it.t === 'color') continue; let v = +getPath(settings, it.p); if (isNaN(v)) continue; v = Math.max(it.min, Math.min(it.max, v)); setPath(settings, it.p, v); } }
+  function clampSettings(){ for (const it of SCHEMA){ if (!it.p || it.t) continue; let v = +getPath(settings, it.p); if (isNaN(v)) continue; setPath(settings, it.p, Math.max(it.min, Math.min(it.max, v))); } }
 
   function buildPanel() {
-    const btn = document.createElement('button');
-    btn.id = 'gemDbgBtn'; btn.type = 'button'; btn.textContent = '🔧 Gems';
+    const btn = document.createElement('button'); btn.id = 'gemDbgBtn'; btn.type = 'button'; btn.textContent = '🔧 Gems';
     const panel = document.createElement('div'); panel.id = 'gemDbgPanel'; panel.style.display = 'none';
     const inner = document.createElement('div'); inner.className = 'gd-body'; panel.appendChild(inner);
     const rows = {};
@@ -5868,7 +5876,6 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
       }
       input.className = 'gd-i'; row.appendChild(input); if (out) row.appendChild(out); inner.appendChild(row); rows[it.p] = { input, out, it };
     }
-    // JSON tools
     const tools = document.createElement('div'); tools.className = 'gd-tools';
     const ta = document.createElement('textarea'); ta.className = 'gd-json'; ta.spellcheck = false;
     const mkBtn = (t) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.className = 'gd-b'; return b; };
@@ -5878,7 +5885,6 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     bReset.onclick = () => resetSettings();
     tools.appendChild(bCopy); tools.appendChild(bApply); tools.appendChild(bReset); tools.appendChild(ta);
     inner.appendChild(tools);
-
     btn.onclick = () => { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; if (panel.style.display === 'block') ta.value = exportJSON(); };
     document.body.appendChild(btn); document.body.appendChild(panel);
     G.panelRefresh = () => { for (const p in rows){ const { input, out, it } = rows[p]; const v = getPath(settings, it.p); if (it.t === 'check') input.checked = !!v; else input.value = v; if (out) out.textContent = (+v).toFixed(String(it.s).includes('.') ? 2 : 0); } ta.value = exportJSON(); };
