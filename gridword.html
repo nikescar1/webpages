@@ -132,10 +132,10 @@
   #homeScreen::-webkit-scrollbar { width: 0; }
 
   .settings-gear {
-    position: absolute;
-    top: 14px; right: 14px;
-    z-index: 5;
+    align-self: flex-end;
+    margin-bottom: -8px;
     width: 42px; height: 42px;
+    flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     background: var(--surface);
     border: 2.5px solid var(--ink);
@@ -164,12 +164,13 @@
   .home-logo .word {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 56px;
-    letter-spacing: 2px;
+    font-size: clamp(32px, 13vw, 56px);
+    letter-spacing: 1px;
     color: var(--ink);
     display: inline-block;
     line-height: 1;
     transform: rotate(-2deg);
+    white-space: nowrap;
   }
   .home-logo .word .pop {
     display: inline-block;
@@ -1400,6 +1401,20 @@
   .rotate-left { left: 0; }
   .rotate-right { right: 0; }
 
+  /* Free-play "New Board" sits centered between the two rotate buttons, in the
+     board's bottom margin. Hidden in daily. */
+  .new-board-btn {
+    position: absolute;
+    bottom: -52px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    height: 44px;
+    padding: 0 18px;
+    white-space: nowrap;
+  }
+  .new-board-btn:active { transform: translate(-50%, 2px); }
+  #gameScreen.daily-mode .new-board-btn { display: none; }
+
   /* Press-and-hold magnifier lens. */
   .lens {
     position: fixed;
@@ -2039,13 +2054,13 @@
 </div>
 
 <div id="homeScreen">
-  <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
+  <div class="home-inner">
+    <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="3"></circle>
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
     </svg>
-  </button>
-  <div class="home-inner">
+    </button>
     <div class="home-logo">
       <div class="word"><span class="pop">G</span><span class="pop">R</span><span class="pop">I</span><span class="pop">D</span><span class="pop">W</span><span class="pop">O</span><span class="pop">R</span><span class="pop">D</span></div>
       <div class="tagline">Spell · Score · Repeat</div>
@@ -2151,13 +2166,10 @@
         <path d="M21 3v5h-5"/>
       </svg>
     </button>
+    <button class="btn btn-reset new-board-btn" id="newBoardBtn">New Board</button>
   </div>
 
   <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
-
-  <div class="info-bar" id="infoBar">
-    <button class="btn btn-reset" id="newBoardBtn">New Board</button>
-  </div>
 
   <div class="bonus-strip" id="bonusStrip" style="display:none">
     <span class="bonus-strip-label">Bonuses</span>
@@ -3553,6 +3565,19 @@ function maybeAwardAllTilesBonus() {
   playAllTilesBonus(minCell, gained);
 }
 
+// A rising rumble that grows with the tier and ends in a big triple thump —
+// tuned to match the diagonal rainbow-wave cascade + confetti of the bonus.
+function allTilesBonusHaptic(level) {
+  const steps = Math.min(3 + level, 11);   // more build-up at higher tiers
+  const pat = [];
+  for (let i = 0; i < steps; i++) {
+    pat.push(10 + i * 6);                    // buzz, lengthening
+    pat.push(Math.max(18, 46 - i * 3));      // gap, tightening
+  }
+  pat.push(80, 60, 160);                     // finale: thump — thump — BOOM
+  return pat;
+}
+
 function playAllTilesBonus(level, gained) {
   // Reflect the new tier in the page background and the earned-bonuses strip.
   applyBonusBackground();
@@ -3574,7 +3599,7 @@ function playAllTilesBonus(level, gained) {
   // Confetti + big shake
   fireConfetti(90);
   shakeGrid('big');
-  haptic([18, 50, 18, 50, 30, 60, 40]);
+  haptic(allTilesBonusHaptic(level));
 
   // Rainbow wave pulse over every cell, diagonal cascade.
   for (let i = 0; i < CELL_COUNT; i++) {
@@ -4378,12 +4403,20 @@ function updateFoundLayout() {
   if (!gs || !gs.classList.contains('active')) return;
   const panel = document.getElementById('foundPanel');
 
-  // Hypothetical space for an inline list = viewport minus the fixed chrome
-  // above it and the square board (+ its rotate-button margin).
+  const vh = gs.clientHeight;
+  // Chrome around the board (independent of the board's own size).
+  const chrome = measureH('.header') + measureH('.word-bar') + measureH('#sizeSelector');
+
+  // Cap the board by available height so it can't overflow on short / square
+  // screens (it's otherwise sized by width alone). Leaves room for the
+  // rotate-button margin, gaps, and at least the found-sheet handle.
+  const reserve = chrome + 56 /*rotate margin*/ + 46 /*gaps+padding*/ + 54 /*sheet handle*/;
+  const boardCap = Math.max(180, Math.min(480, vh - reserve));
+  gridWrap.style.maxWidth = boardCap + 'px';
+
+  // Space left for an inline list, using the now-capped board size.
   const boardOuter = gridWrap.offsetHeight + 56;
-  const above = measureH('.header') + measureH('.word-bar') +
-                measureH('#sizeSelector') + boardOuter + measureH('.info-bar');
-  const avail = gs.clientHeight - above - 68;   // ~gaps + vertical padding
+  const avail = vh - chrome - boardOuter - 68;
 
   const needSheet = avail < FOUND_SHEET_MIN;
   const wasSheet = panel.classList.contains('sheet');
