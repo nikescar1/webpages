@@ -1562,7 +1562,7 @@
 
   /* Reserve room for the collapsed handle so it never overlaps the info bar,
      and drop the now-duplicated word count from the info bar. */
-  #gameScreen.has-sheet { padding-bottom: 54px; }
+  #gameScreen.has-sheet { padding-bottom: 74px; }
 
   /* Earned all-tiles bonuses for this round */
   .bonus-strip {
@@ -4482,7 +4482,10 @@ function updateFoundLayout() {
   const coreH = core.offsetHeight;   // varies by mode / found-sort presence
   if (!coreW || !coreH) return;
 
-  const LIST_MIN = FOUND_SHEET_MIN, HANDLE = 50, GAP = 8;
+  // HANDLE reserves the bottom band under the zoomed play-core in sheet mode:
+  // the 48px collapsed handle plus ~26px breathing room so the tap-to-spell bar
+  // and rotate buttons don't sit right on top of the slide-up.
+  const LIST_MIN = FOUND_SHEET_MIN, HANDLE = 74, GAP = 8;
   const zoomW = Math.min(vw / coreW, 1);   // never enlarge past the reference design
   const inlineLeftover = vh - coreH * zoomW - GAP;
   let zoom, needSheet;
