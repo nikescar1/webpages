@@ -37,7 +37,10 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   html, body {
-    height: 100%; overflow: hidden;
+    height: 100vh;            /* fallback for browsers without dvh */
+    height: 100dvh;           /* track the mobile URL bar so the app fills the
+                                 visual viewport (no dead gap under the list) */
+    overflow: hidden;
     background: var(--bg); color: var(--ink);
     font-family: 'Nunito', sans-serif;
     font-weight: 700;
@@ -4550,6 +4553,14 @@ window.addEventListener('resize', () => {
   foundLayoutTimer = setTimeout(() => { updateFoundLayout(); updateHomeLayout(); }, 120);
 });
 window.addEventListener('orientationchange', () => setTimeout(() => { updateFoundLayout(); updateHomeLayout(); }, 250));
+// The mobile URL bar showing/hiding changes the visual viewport without always
+// firing a window resize — refit so the found list keeps filling to the bottom.
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    clearTimeout(foundLayoutTimer);
+    foundLayoutTimer = setTimeout(() => { updateFoundLayout(); updateHomeLayout(); }, 120);
+  });
+}
 
 // ══════════════════════════════════════════════════════════════
 // DAILY AUTO-SUBMIT + LIVE RANK
