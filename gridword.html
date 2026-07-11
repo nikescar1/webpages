@@ -135,11 +135,12 @@
   #homeScreen.active { display: flex; }
   #homeScreen::-webkit-scrollbar { width: 0; }
 
+  /* Sits as the third item in .help-chips (after How to Play / Rules), a
+     fixed square button — not its own top-of-screen row — so the three
+     together span the same width as the panels below. */
   .settings-gear {
-    align-self: flex-end;
-    margin-bottom: -8px;
-    width: 42px; height: 42px;
-    flex-shrink: 0;
+    flex: none;
+    width: 44px; height: 44px;
     display: flex; align-items: center; justify-content: center;
     background: var(--surface);
     border: 2.5px solid var(--ink);
@@ -179,7 +180,7 @@
   .home-logo .word {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: clamp(32px, 13vw, 56px);
+    font-size: 68px;
     letter-spacing: 1px;
     color: var(--ink);
     display: inline-block;
@@ -210,7 +211,7 @@
     margin-top: 14px;
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 12px;
+    font-size: 15px;
     color: var(--ink-soft);
     letter-spacing: 3px;
     text-transform: uppercase;
@@ -512,16 +513,15 @@
   }
   .home-foot .settings-link:hover { color: var(--c10); border-color: var(--c10); }
 
-  /* ── HELP CHIPS (How to play / Rules) ── */
+  /* ── HELP CHIPS (How to play / Rules / Settings) ── */
   .help-chips {
     display: flex;
+    align-items: stretch;
     gap: 10px;
-    justify-content: center;
     margin-top: -4px;
   }
   .help-chip {
     flex: 1;
-    max-width: 180px;
     background: var(--surface);
     border: 2.5px solid var(--ink);
     color: var(--ink);
@@ -911,16 +911,20 @@
   .header-side { display: flex; align-items: center; gap: 8px; z-index: 1; }
   .header-right { justify-content: flex-end; }
 
+  /* Sized to match .score-display exactly (same padding/min-width/font
+     sizes) so the two header pills read as a matched pair. */
   .rank-chip {
     display: flex; flex-direction: column;
     align-items: center; line-height: 1;
+    flex-shrink: 0;
     background: var(--surface);
     border: 2.5px solid var(--ink);
     border-radius: 12px;
-    padding: 4px 10px;
+    padding: 4px 9px;
     box-shadow: 3px 3px 0 0 var(--shadow-color);
     cursor: pointer; touch-action: manipulation;
     transition: transform 0.1s, box-shadow 0.1s;
+    min-width: 58px;
   }
   .rank-chip:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
   .rank-chip-label {
@@ -930,7 +934,7 @@
   }
   .rank-chip-value {
     font-family: 'Nunito', sans-serif; font-weight: 800;
-    font-size: 20px; color: var(--ink); line-height: 1; margin-top: 1px;
+    font-size: 21px; color: var(--ink); line-height: 1; margin-top: 1px;
   }
 
   .gear-btn {
@@ -951,9 +955,6 @@
     background: var(--surface);
     border: 2.5px solid var(--ink);
     color: var(--ink);
-    font-family: 'Nunito', sans-serif;
-    font-weight: 800;
-    font-size: 18px;
     width: 40px; height: 40px;
     border-radius: 12px;
     cursor: pointer;
@@ -962,6 +963,7 @@
     box-shadow: 3px 3px 0 0 var(--shadow-color);
     transition: transform 0.08s, box-shadow 0.08s;
   }
+  .back-btn svg { width: 21px; height: 21px; display: block; }
   .back-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 0 var(--shadow-color); }
   .back-btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--shadow-color); }
 
@@ -974,20 +976,20 @@
   .game-title .logo {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 17px;
+    font-size: 23px;
     color: var(--ink);
-    text-shadow: 1.5px 1.5px 0 var(--c5);
+    text-shadow: 2px 2px 0 var(--c5);
     letter-spacing: 0.3px;
     white-space: nowrap;
   }
   .game-title .mode-label {
     font-family: 'Nunito', sans-serif;
     font-variant-numeric: tabular-nums;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--ink-soft);
     letter-spacing: 2.5px; text-transform: uppercase;
-    margin-top: 4px;
+    margin-top: 3px;
   }
   .game-title .mode-label.daily { color: var(--c10); }
 
@@ -1505,7 +1507,7 @@
     text-align: center;
     width: 100%;
     flex-shrink: 0;
-    padding: 4px 2px 2px;
+    padding: 2px 2px 2px;
   }
   #gameScreen.daily-mode .info-bar { display: none; }  /* no "New Board" in daily */
   .btn {
@@ -1563,18 +1565,21 @@
   .found-panel.sheet.open { transform: translateY(0); }
   .found-panel.sheet .found-handle {
     display: flex; align-items: center; justify-content: center;
-    width: 100%; height: 30px; flex: none;
+    width: 100%; height: 22px; flex: none;
+    gap: 10px;
     border: none; background: none; cursor: pointer; position: relative;
     color: var(--ink);
     touch-action: manipulation;
   }
-  .found-panel.sheet .found-handle::before {
-    content: ''; position: absolute; top: 8px; left: 50%;
-    transform: translateX(-50%);
+  /* A chevron flanks each side of the grip bar (rather than one chevron
+     stacked below it) so the whole handle is shorter, leaving more of the
+     collapsed sheet's peek budget for the word-count line instead of
+     bleeding into the sort row underneath it. */
+  .found-handle-grip {
     width: 40px; height: 4px; border-radius: 999px;
     background: var(--line-soft);
   }
-  .found-handle-chevron { font-size: 11px; opacity: 0.6; transition: transform 0.3s; margin-top: 6px; }
+  .found-handle-chevron { font-size: 11px; opacity: 0.6; transition: transform 0.3s; }
   .found-panel.sheet.open .found-handle-chevron { transform: rotate(180deg); }
   .found-handle.pulse { animation: foundHandlePulse 0.5s ease; }
   @keyframes foundHandlePulse {
@@ -1598,12 +1603,21 @@
   }
   /* Daily has no "New Board" button, so the rotate-button band is free — lift
      the bonuses up into it, centered between the two rotate buttons. The
-     negative margin pulls the found panel up to fill the vacated row. */
+     negative margin pulls the found panel up to fill the vacated row. Only
+     the pill row participates in that box's height/centering (matching the
+     rotate buttons' centerline exactly); the label floats above it via
+     absolute positioning so it doesn't push the pills down. */
   #gameScreen.daily-mode .bonus-strip {
-    margin-top: -54px;
+    margin-top: -58px;
     min-height: 44px;
     position: relative; z-index: 12;
     pointer-events: none;   /* chips are non-interactive; keep taps on the board */
+  }
+  #gameScreen.daily-mode .bonus-strip-label {
+    position: absolute;
+    top: -4px; left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
   }
   .bonus-strip-label {
     font-family: 'Nunito', sans-serif;
@@ -2109,12 +2123,6 @@
 <div id="homeScreen">
   <div class="home-scale">
   <div class="home-inner">
-    <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="3"></circle>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-    </svg>
-    </button>
     <div class="home-logo">
       <div class="word"><span class="pop">G</span><span class="pop">R</span><span class="pop">I</span><span class="pop">D</span><span class="pop">W</span><span class="pop">O</span><span class="pop">R</span><span class="pop">D</span></div>
       <div class="tagline">Spell · Score · Repeat</div>
@@ -2123,6 +2131,12 @@
     <div class="help-chips">
       <button class="help-chip tutorial" id="tutorialBtn"><span class="ico">▶</span>How to Play</button>
       <button class="help-chip rules" id="rulesBtn"><span class="ico">?</span>Rules</button>
+      <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+      </button>
     </div>
 
     <div class="panel">
@@ -2169,7 +2183,12 @@
   <div id="playCore">
   <div class="header">
     <div class="header-side header-left">
-      <button class="back-btn" id="backBtn" title="Back">←</button>
+      <button class="back-btn" id="backBtn" title="Back" aria-label="Back to menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5"></path>
+          <path d="M11 18l-6-6 6-6"></path>
+        </svg>
+      </button>
       <button class="rank-chip" id="rankChip" type="button" title="See standings on the menu" style="display:none">
         <span class="rank-chip-label">Rank</span>
         <span class="rank-chip-value" id="rankValue">—</span>
@@ -2238,7 +2257,9 @@
 
   <div class="found-panel" id="foundPanel">
     <button class="found-handle" id="foundHandle" type="button" aria-label="Toggle found words">
-      <span class="found-handle-chevron" id="foundHandleChevron">▲</span>
+      <span class="found-handle-chevron" aria-hidden="true">▲</span>
+      <span class="found-handle-grip"></span>
+      <span class="found-handle-chevron" aria-hidden="true">▲</span>
     </button>
     <!-- Word count sits directly under the handle bar (sheet) or under the
          rotate band (inline), and stays put whether the sheet is open or shut. -->
@@ -4530,10 +4551,11 @@ function updateFoundLayout() {
   // The collapsed sheet peeks its handle bar plus the word-count line. Measure
   // that peek so the transform and the reserved band both track the real size.
   const wf = document.getElementById('wordsFound');
-  const HANDLE_H = 30;
-  // +8 covers the sheet's 3px top border plus a little bottom cushion so the
-  // word-count line isn't clipped when collapsed.
-  const peek = HANDLE_H + (wf ? wf.offsetHeight : 24) + 8;
+  const HANDLE_H = 22;
+  // +3 covers the sheet's 3px top border. Kept tight (not a generous cushion)
+  // so the peek stops right at the word-count line and doesn't reveal any of
+  // the sort row sitting just below it.
+  const peek = HANDLE_H + (wf ? wf.offsetHeight : 20) + 3;
   panel.style.setProperty('--peek', peek + 'px');
   // RESERVE keeps ~20px breathing room above the collapsed sheet so the
   // tap-to-spell bar / rotate band don't sit right on top of it.
