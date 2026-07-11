@@ -1033,8 +1033,10 @@
   body.tap-mode #playCore .header       { order: 0; }
   body.tap-mode #playCore .size-selector { order: 1; }
   body.tap-mode #playCore .grid-wrap     { order: 2; }
-  body.tap-mode #playCore .word-bar      { order: 3; }
-  body.tap-mode #playCore .bonus-strip   { order: 4; }
+  /* Bonuses ride in the rotate-button band right under the board; the tap-to-
+     spell bar is the last thing below it. */
+  body.tap-mode #playCore .bonus-strip   { order: 3; }
+  body.tap-mode #playCore .word-bar      { order: 4; }
 
   /* One-time hint pointing at the word bar in tap mode. */
   .tap-hint {
@@ -1476,13 +1478,15 @@
   .words-found {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ink-soft);
     text-transform: uppercase;
     letter-spacing: 1px;
+    text-align: center;
+    width: 100%;
+    flex-shrink: 0;
+    padding: 4px 2px 2px;
   }
-  /* Docked to the far right of the sort row. */
-  .found-sort .words-found { margin-left: auto; }
   #gameScreen.daily-mode .info-bar { display: none; }  /* no "New Board" in daily */
   .btn {
     font-family: 'Nunito', sans-serif;
@@ -1529,19 +1533,19 @@
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -6px 22px rgba(42, 30, 63, 0.22);
     padding: 0 12px 12px;
-    /* collapsed → only the 48px handle peeks above the bottom edge */
-    transform: translateY(calc(100% - 48px));
+    /* Collapsed → only the handle bar + word-count line peek above the bottom
+       edge. --peek is measured and set in JS (updateFoundLayout). */
+    transform: translateY(calc(100% - var(--peek, 62px)));
   }
   /* Transition is added a frame after the sheet appears (via the .anim class)
      so the initial collapse snaps into place instead of sliding on load. */
   .found-panel.sheet.anim { transition: transform 0.32s cubic-bezier(0.34, 1.4, 0.5, 1); }
   .found-panel.sheet.open { transform: translateY(0); }
   .found-panel.sheet .found-handle {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    width: 100%; height: 48px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 30px; flex: none;
     border: none; background: none; cursor: pointer; position: relative;
-    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px;
-    color: var(--ink); letter-spacing: 0.5px;
+    color: var(--ink);
     touch-action: manipulation;
   }
   .found-panel.sheet .found-handle::before {
@@ -1550,11 +1554,8 @@
     width: 40px; height: 4px; border-radius: 999px;
     background: var(--line-soft);
   }
-  .found-handle-chevron { font-size: 11px; opacity: 0.6; transition: transform 0.3s; }
+  .found-handle-chevron { font-size: 11px; opacity: 0.6; transition: transform 0.3s; margin-top: 6px; }
   .found-panel.sheet.open .found-handle-chevron { transform: rotate(180deg); }
-  /* When expanded, the sort row's "N words found" is visible, so the count
-     next to the arrow is redundant — hide it and keep just the chevron. */
-  .found-panel.sheet.open .found-handle-count { display: none; }
   .found-handle.pulse { animation: foundHandlePulse 0.5s ease; }
   @keyframes foundHandlePulse {
     0%, 100% { transform: translateY(0); }
@@ -1570,9 +1571,19 @@
   /* Earned all-tiles bonuses for this round */
   .bonus-strip {
     width: 100%; max-width: 480px;
-    display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
     flex-shrink: 0; flex-wrap: wrap;
     padding: 2px 2px 0;
+  }
+  /* Daily has no "New Board" button, so the rotate-button band is free — lift
+     the bonuses up into it, centered between the two rotate buttons. The
+     negative margin pulls the found panel up to fill the vacated row. */
+  #gameScreen.daily-mode .bonus-strip {
+    margin-top: -54px;
+    min-height: 44px;
+    flex-wrap: nowrap;
+    position: relative; z-index: 12;
+    pointer-events: none;   /* chips are non-interactive; keep taps on the board */
   }
   .bonus-strip-label {
     font-family: 'Nunito', sans-serif;
@@ -2202,14 +2213,15 @@
 
   <div class="found-panel" id="foundPanel">
     <button class="found-handle" id="foundHandle" type="button" aria-label="Toggle found words">
-      <span class="found-handle-count" id="foundHandleCount">0 words</span>
       <span class="found-handle-chevron" id="foundHandleChevron">▲</span>
     </button>
+    <!-- Word count sits directly under the handle bar (sheet) or under the
+         rotate band (inline), and stays put whether the sheet is open or shut. -->
+    <div class="words-found" id="wordsFound">0 words found</div>
     <div class="found-sort" id="foundSort" style="display:none">
       <span class="found-sort-label">Sort</span>
       <button class="sort-btn active" data-sort="recent">Recent</button>
       <button class="sort-btn" data-sort="value">Value</button>
-      <span class="words-found" id="wordsFound">0 words found</span>
     </div>
     <div class="found-words-list" id="foundList"></div>
   </div>
@@ -3621,6 +3633,7 @@ function playAllTilesBonus(level, gained) {
   // Reflect the new tier in the page background and the earned-bonuses strip.
   applyBonusBackground();
   updateBonusStrip();
+  updateFoundLayout();   // the strip appearing changes the play-core height → refit
 
   // Banner — reflects the tier reached and the points just awarded.
   const banner = document.getElementById('allTilesBanner');
@@ -4420,7 +4433,7 @@ function sortFoundList() {
 }
 
 function updateSortVisibility() {
-  // Always visible now — the row also holds the word count on the right.
+  // Sort row is always visible; the word count lives in its own line above it.
   document.getElementById('foundSort').style.display = '';
   updateFoundHandle();
 }
@@ -4450,8 +4463,6 @@ const FOUND_SHEET_MIN = 150;   // px of inline room below which we switch to a s
 
 function updateFoundHandle() {
   const n = foundWords.length;
-  const countEl = document.getElementById('foundHandleCount');
-  if (countEl) countEl.textContent = `${n} word${n !== 1 ? 's' : ''}`;
   const panel = document.getElementById('foundPanel');
   const handle = document.getElementById('foundHandle');
   // Nudge the handle when a new word lands while the sheet is collapsed.
@@ -4485,10 +4496,18 @@ function updateFoundLayout() {
   const coreH = core.offsetHeight;   // varies by mode / found-sort presence
   if (!coreW || !coreH) return;
 
-  // HANDLE reserves the bottom band under the zoomed play-core in sheet mode:
-  // the 48px collapsed handle plus ~26px breathing room so the tap-to-spell bar
-  // and rotate buttons don't sit right on top of the slide-up.
-  const LIST_MIN = FOUND_SHEET_MIN, HANDLE = 74, GAP = 8;
+  // The collapsed sheet peeks its handle bar plus the word-count line. Measure
+  // that peek so the transform and the reserved band both track the real size.
+  const wf = document.getElementById('wordsFound');
+  const HANDLE_H = 30;
+  // +8 covers the sheet's 3px top border plus a little bottom cushion so the
+  // word-count line isn't clipped when collapsed.
+  const peek = HANDLE_H + (wf ? wf.offsetHeight : 24) + 8;
+  panel.style.setProperty('--peek', peek + 'px');
+  // RESERVE keeps ~20px breathing room above the collapsed sheet so the
+  // tap-to-spell bar / rotate band don't sit right on top of it.
+  const RESERVE = peek + 20;
+  const LIST_MIN = FOUND_SHEET_MIN, GAP = 8;
   const zoomW = Math.min(vw / coreW, 1);   // never enlarge past the reference design
   const inlineLeftover = vh - coreH * zoomW - GAP;
   let zoom, needSheet;
@@ -4500,7 +4519,7 @@ function updateFoundLayout() {
     // Not enough height for an inline list — zoom to fit and slide the list
     // out as a bottom sheet (the one allowed exception).
     needSheet = true;
-    zoom = Math.min(zoomW, (vh - HANDLE) / coreH);
+    zoom = Math.min(zoomW, (vh - RESERVE) / coreH);
   }
   zoom = Math.max(0.3, zoom);
   core.style.zoom = String(zoom);
