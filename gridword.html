@@ -867,7 +867,46 @@
     justify-content: space-between;
     width: 100%; max-width: 480px;
     gap: 10px;
+    position: relative;
   }
+  .header-side { display: flex; align-items: center; gap: 8px; z-index: 1; }
+  .header-right { justify-content: flex-end; }
+
+  .rank-chip {
+    display: flex; flex-direction: column;
+    align-items: center; line-height: 1;
+    background: var(--surface);
+    border: 2.5px solid var(--ink);
+    border-radius: 12px;
+    padding: 4px 10px;
+    box-shadow: 3px 3px 0 0 var(--shadow-color);
+    cursor: pointer; touch-action: manipulation;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .rank-chip:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
+  .rank-chip-label {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 8px; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 1.5px;
+  }
+  .rank-chip-value {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 20px; color: var(--ink); line-height: 1; margin-top: 1px;
+  }
+
+  .gear-btn {
+    width: 40px; height: 40px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface);
+    border: 2.5px solid var(--ink);
+    border-radius: 12px;
+    color: var(--ink);
+    box-shadow: 3px 3px 0 0 var(--shadow-color);
+    cursor: pointer; touch-action: manipulation;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .gear-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
+  .gear-btn svg { width: 21px; height: 21px; display: block; }
 
   .back-btn {
     background: var(--surface);
@@ -888,17 +927,19 @@
   .back-btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--shadow-color); }
 
   .game-title {
-    flex: 1;
+    position: absolute; left: 50%; transform: translateX(-50%);
     display: flex; flex-direction: column;
     align-items: center; line-height: 1;
+    pointer-events: none;
   }
   .game-title .logo {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 22px;
+    font-size: 17px;
     color: var(--ink);
-    text-shadow: 2px 2px 0 var(--c5);
-    letter-spacing: 0.5px;
+    text-shadow: 1.5px 1.5px 0 var(--c5);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
   }
   .game-title .mode-label {
     font-family: 'Nunito', sans-serif;
@@ -918,9 +959,9 @@
     background: var(--surface);
     border: 2.5px solid var(--ink);
     border-radius: 12px;
-    padding: 5px 12px;
+    padding: 4px 9px;
     box-shadow: 3px 3px 0 0 var(--shadow-color);
-    min-width: 78px;
+    min-width: 58px;
   }
   .score-label {
     font-family: 'Nunito', sans-serif;
@@ -933,7 +974,7 @@
   .score-value {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 26px;
+    font-size: 21px;
     color: var(--ink);
     line-height: 1;
     margin-top: 1px;
@@ -966,9 +1007,38 @@
     overflow: hidden; padding: 0 16px; flex-shrink: 0;
   }
   .word-bar.dragging { color: var(--ink); }
-  /* Tap mode: the word bar is the submit control. */
+  /* Tap mode: the word bar is the submit control, and it moves below the board
+     (under the rotate buttons) via flex order — it's the last thing you touch. */
   body.tap-mode .word-bar { cursor: pointer; }
   body.tap-mode .word-bar:active { transform: translateY(1px); }
+  body.tap-mode #gameScreen .header       { order: 0; }
+  body.tap-mode #gameScreen .size-selector { order: 1; }
+  body.tap-mode #gameScreen .grid-wrap     { order: 2; }
+  body.tap-mode #gameScreen .word-bar      { order: 3; }
+  body.tap-mode #gameScreen .info-bar      { order: 4; }
+  body.tap-mode #gameScreen .bonus-strip   { order: 5; }
+  body.tap-mode #gameScreen .found-panel   { order: 6; }
+
+  /* One-time hint pointing at the word bar in tap mode. */
+  .tap-hint {
+    position: fixed; z-index: 90;
+    transform: translate(-50%, -100%);
+    background: var(--ink); color: var(--bg);
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 12px; letter-spacing: 0.3px;
+    padding: 7px 12px; border-radius: 10px;
+    box-shadow: 0 5px 16px rgba(42, 30, 63, 0.32);
+    white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity 0.22s;
+    display: none;
+  }
+  .tap-hint.show { display: block; opacity: 1; }
+  .tap-hint::after {
+    content: ''; position: absolute; left: 50%; bottom: -6px;
+    transform: translateX(-50%);
+    border: 6px solid transparent; border-bottom: none;
+    border-top-color: var(--ink);
+  }
   .word-bar[data-len="3"].valid { background: var(--c3); color: white; }
   .word-bar[data-len="4"].valid { background: var(--c4); color: white; }
   .word-bar[data-len="5"].valid { background: var(--c5); color: var(--ink); }
@@ -1378,6 +1448,9 @@
     text-transform: uppercase;
     letter-spacing: 1px;
   }
+  /* Docked to the far right of the sort row. */
+  .found-sort .words-found { margin-left: auto; }
+  #gameScreen.daily-mode .info-bar { display: none; }  /* no "New Board" in daily */
   .btn {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
@@ -1457,7 +1530,6 @@
   /* Reserve room for the collapsed handle so it never overlaps the info bar,
      and drop the now-duplicated word count from the info bar. */
   #gameScreen.has-sheet { padding-bottom: 54px; }
-  #gameScreen.has-sheet .words-found { display: none; }
 
   /* Earned all-tiles bonuses for this round */
   .bonus-strip {
@@ -1732,6 +1804,20 @@
     transition: background 0.15s;
   }
   .name-input:focus { background: white; }
+  .settings-initials-row { display: flex; flex-direction: column; gap: 2px; }
+  .settings-initials-row .toggle-label {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 13px; color: var(--ink); letter-spacing: 0.3px;
+  }
+  .settings-initials-row .toggle-sub {
+    font-family: 'Nunito', sans-serif; font-weight: 600;
+    font-size: 11px; color: var(--ink-soft);
+  }
+  .settings-initials {
+    width: 100%; margin: 6px 0 0;
+    font-size: 18px; letter-spacing: 4px;
+    padding: 8px 12px;
+  }
 
   .modal-lb {
     margin-top: 14px;
@@ -2010,14 +2096,28 @@
 
 <div id="gameScreen">
   <div class="header">
-    <button class="back-btn" id="backBtn" title="Back">←</button>
+    <div class="header-side header-left">
+      <button class="back-btn" id="backBtn" title="Back">←</button>
+      <button class="rank-chip" id="rankChip" type="button" title="See standings on the menu" style="display:none">
+        <span class="rank-chip-label">Rank</span>
+        <span class="rank-chip-value" id="rankValue">—</span>
+      </button>
+    </div>
     <div class="game-title">
       <div class="logo">GRIDWORD</div>
       <div class="mode-label" id="modeLabel">Free Play</div>
     </div>
-    <div class="score-display">
-      <span class="score-label">Score</span>
-      <span class="score-value" id="totalScore">0</span>
+    <div class="header-side header-right">
+      <div class="score-display">
+        <span class="score-label">Score</span>
+        <span class="score-value" id="totalScore">0</span>
+      </div>
+      <button class="gear-btn game-gear" id="gameSettingsGear" type="button" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -2055,13 +2155,8 @@
 
   <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
 
-  <div class="info-bar">
-    <span class="words-found" id="wordsFound">0 words found</span>
-    <div>
-      <button class="btn btn-reset" id="newBoardBtn">New</button>
-      <button class="btn btn-reset" id="freshBoardBtn" style="display:none">Restart</button>
-      <button class="btn btn-submit" id="submitBtn">Submit</button>
-    </div>
+  <div class="info-bar" id="infoBar">
+    <button class="btn btn-reset" id="newBoardBtn">New Board</button>
   </div>
 
   <div class="bonus-strip" id="bonusStrip" style="display:none">
@@ -2078,10 +2173,13 @@
       <span class="found-sort-label">Sort</span>
       <button class="sort-btn active" data-sort="recent">Recent</button>
       <button class="sort-btn" data-sort="value">Value</button>
+      <span class="words-found" id="wordsFound">0 words found</span>
     </div>
     <div class="found-words-list" id="foundList"></div>
   </div>
 </div>
+
+<div class="tap-hint" id="tapHint">Tap the word to submit</div>
 
 <div class="modal-overlay" id="modal">
   <div class="modal">
@@ -2119,7 +2217,7 @@
       <div class="settings-row settings-toggle">
         <div>
           <div class="toggle-label">Tap to select</div>
-          <div class="toggle-sub">Tap letters to build a word, then tap the word bar above the board to submit (instead of dragging).</div>
+          <div class="toggle-sub">Tap letters to build a word, then tap the word bar to submit (instead of dragging).</div>
         </div>
         <div class="toggle-switch" id="tapSelectToggle" role="switch" aria-checked="false" tabindex="0"></div>
       </div>
@@ -2130,10 +2228,14 @@
         </div>
         <div class="toggle-switch" id="hapticsToggle" role="switch" aria-checked="false" tabindex="0"></div>
       </div>
+      <div class="settings-row settings-initials-row">
+        <div class="toggle-label">Initials</div>
+        <div class="toggle-sub">Shown on the daily leaderboard when your score posts.</div>
+        <input class="name-input settings-initials" id="settingsInitials" type="text" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC">
+      </div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-reset" id="settingsCancelBtn">Cancel</button>
-      <button class="btn btn-submit" id="settingsSaveBtn">Save</button>
+      <button class="btn btn-submit" id="settingsDoneBtn">Done</button>
     </div>
   </div>
 </div>
@@ -2692,23 +2794,24 @@ function startFreePlay() {
 
 function enterGame() {
   homeScreen.classList.remove('active');
-  document.getElementById('gameScreen').classList.add('active');
+  const gameScreen = document.getElementById('gameScreen');
+  gameScreen.classList.add('active');
+  gameScreen.classList.toggle('daily-mode', MODE === 'daily');
 
   const sizeSel = document.getElementById('sizeSelector');
   const modeLabel = document.getElementById('modeLabel');
-  const freshBtn = document.getElementById('freshBoardBtn');
+  const rankChip = document.getElementById('rankChip');
   if (MODE === 'daily') {
     sizeSel.style.display = 'none';
     modeLabel.textContent = 'Daily';
     modeLabel.classList.add('daily');
-    document.getElementById('newBoardBtn').style.display = 'none';
-    if (freshBtn) freshBtn.style.display = '';
+    rankChip.style.display = '';
+    loadDailyLeaderboard();   // fetch today's board so the rank chip is live
   } else {
     sizeSel.style.display = '';
     modeLabel.textContent = 'Free Play';
     modeLabel.classList.remove('daily');
-    document.getElementById('newBoardBtn').style.display = '';
-    if (freshBtn) freshBtn.style.display = 'none';
+    rankChip.style.display = 'none';
   }
 
   for (const b of document.querySelectorAll('#sizeOptions .size-btn')) {
@@ -2720,9 +2823,9 @@ function enterGame() {
 
 function exitToHome() {
   // Defensive: snapshot daily progress on the way out so the user never
-  // loses state to a missed save site (e.g. exiting via the modal's back
-  // button without going through the leaderboard submit flow).
+  // loses state to a missed save site.
   if (MODE === 'daily') saveDailyProgress();
+  hideTapHint();
   document.getElementById('gameScreen').classList.remove('active');
   homeScreen.classList.add('active');
   closeModal();
@@ -3680,6 +3783,7 @@ function tapTile(idx) {
     path = [idx];
     haptic(8);
     highlightPath(); updateWordBar();
+    maybeShowTapHint();   // first-time nudge toward the word bar
     return;
   }
   const last = path[path.length - 1];
@@ -3700,6 +3804,7 @@ function tapTile(idx) {
 
 function submitCurrentSelection() {
   if (path.length === 0) return;
+  hideTapHint(); markTapHintSeen();
   const word = path.map(i => grid[i]).join('');
   submitWord(word, [...path]);
   path = [];
@@ -3708,6 +3813,27 @@ function submitCurrentSelection() {
 
 // Placeholder shown in the word bar when nothing is selected.
 function spellHint() { return tapMode ? 'tap to spell' : 'drag to spell'; }
+
+// One-time hint, shown once ever, pointing at the word bar the first time a
+// player starts a word in tap mode.
+const LS_TAP_HINT_KEY = LS_PREFIX + 'tapHintSeen';
+function maybeShowTapHint() {
+  if (!tapMode) return;
+  try { if (localStorage.getItem(LS_TAP_HINT_KEY) === '1') return; } catch {}
+  const hint = document.getElementById('tapHint');
+  if (!hint) return;
+  const r = wordBar.getBoundingClientRect();
+  hint.style.left = Math.round(r.left + r.width / 2) + 'px';
+  hint.style.top = Math.round(r.top - 8) + 'px';
+  hint.classList.add('show');
+  clearTimeout(hint._hideTimer);
+  hint._hideTimer = setTimeout(hideTapHint, 4500);
+}
+function hideTapHint() {
+  const hint = document.getElementById('tapHint');
+  if (hint) hint.classList.remove('show');
+}
+function markTapHintSeen() { try { localStorage.setItem(LS_TAP_HINT_KEY, '1'); } catch {} }
 
 function highlightPath() {
   for (let i = 0; i < CELL_COUNT; i++) getCellEl(i).classList.remove('in-path');
@@ -4005,16 +4131,6 @@ wordBar.addEventListener('click', () => {
 });
 
 document.getElementById('newBoardBtn').onclick = () => newGame();
-document.getElementById('freshBoardBtn').onclick = () => {
-  if (foundWords.length === 0) {
-    // Nothing to lose, just start fresh.
-    newGame({ fresh: true });
-    return;
-  }
-  if (confirm('Restart this daily challenge? Your current progress will be lost.')) {
-    newGame({ fresh: true });
-  }
-};
 
 // ══════════════════════════════════════════════════════════════
 // WORD SUBMISSION & SCORING
@@ -4139,6 +4255,10 @@ function submitWord(word, cellPath) {
 
   // Persist daily progress so the user can resume later.
   saveDailyProgress();
+
+  // No manual submit anymore — a scored word updates the best, refreshes the
+  // live rank, and (debounced) posts to the daily leaderboard.
+  if (MODE === 'daily') onDailyWordScored();
 }
 
 function flashWordBar(type, dur) {
@@ -4206,7 +4326,8 @@ function sortFoundList() {
 }
 
 function updateSortVisibility() {
-  document.getElementById('foundSort').style.display = foundWords.length ? '' : 'none';
+  // Always visible now — the row also holds the word count on the right.
+  document.getElementById('foundSort').style.display = '';
   updateFoundHandle();
 }
 
@@ -4297,10 +4418,66 @@ window.addEventListener('resize', () => {
 window.addEventListener('orientationchange', () => setTimeout(updateFoundLayout, 250));
 
 // ══════════════════════════════════════════════════════════════
-// SUBMIT BOARD
+// DAILY AUTO-SUBMIT + LIVE RANK
 // ══════════════════════════════════════════════════════════════
-document.getElementById('submitBtn').onclick = submitBoard;
+// Today's leaderboard entries, used to compute the player's live rank and to
+// know where a newly-posted score lands. Loaded on entering a daily game.
+let dailyLbList = [];
+let dailySubmitTimer = 0;
 
+async function loadDailyLeaderboard() {
+  try {
+    const all = await lbReadAll();
+    dailyLbList = (all && Array.isArray(all[lbKey(DAILY_DATE, DIFFICULTY)]))
+      ? all[lbKey(DAILY_DATE, DIFFICULTY)] : [];
+  } catch { dailyLbList = []; }
+  updateDailyRank();
+}
+
+// Rank = where the player's current score would sit on today's board.
+function updateDailyRank() {
+  if (MODE !== 'daily') return;
+  const el = document.getElementById('rankValue');
+  if (!el) return;
+  const score = computeTotalScore();
+  if (score <= 0) { el.textContent = '—'; return; }
+  let above = 0;
+  for (const e of dailyLbList) { if ((e.s || 0) > score) above++; }
+  el.textContent = '#' + (above + 1);
+}
+
+// Called after every scored daily word: update the local best + live rank, and
+// debounce a silent post to the leaderboard (no modal — the rank chip is the
+// standing; tapping it returns to the menu for the full board).
+function onDailyWordScored() {
+  if (MODE !== 'daily') return;
+  setBest(DAILY_DATE, DIFFICULTY, computeTotalScore(), foundWords);
+  updateDailyRank();
+  clearTimeout(dailySubmitTimer);
+  dailySubmitTimer = setTimeout(postDailyScore, 1500);
+}
+
+async function postDailyScore() {
+  if (MODE !== 'daily') return;
+  const name = getStoredName();
+  const score = computeTotalScore();
+  if (!name || score <= 0) return;   // no initials yet → provisional rank only
+  try {
+    const list = await lbSubmit(DAILY_DATE, DIFFICULTY, name, score, foundWords.length);
+    if (Array.isArray(list)) dailyLbList = list;
+    dailySubmitted = true;
+    updateDailyRank();
+    saveDailyProgress();
+  } catch (err) {
+    console.warn('daily auto-submit failed', err);
+  }
+}
+
+document.getElementById('rankChip').onclick = () => exitToHome();
+
+// ══════════════════════════════════════════════════════════════
+// SUBMIT BOARD (legacy modal — retained but no longer triggered)
+// ══════════════════════════════════════════════════════════════
 function submitBoard() {
   if (foundWords.length === 0) {
     showToast('Find at least one word first!');
@@ -4451,34 +4628,51 @@ function wireToggle(el, onFlip) {
 wireToggle(hapticsToggle, next => { if (next) haptic(20); });
 wireToggle(tapSelectToggle, null);
 
+const settingsInitials = document.getElementById('settingsInitials');
+
 function openSettings() {
   setToggleVisual(hapticsToggle, isHapticsOn());
   setToggleVisual(tapSelectToggle, isTapSelect());
+  if (settingsInitials) settingsInitials.value = getStoredName();
   settingsModal.classList.add('show');
 }
 function closeSettings() {
   settingsModal.classList.remove('show');
 }
 
-document.getElementById('settingsCancelBtn').onclick = closeSettings;
-document.getElementById('settingsSaveBtn').onclick = () => {
+// Single button: persist everything, apply live, and close.
+document.getElementById('settingsDoneBtn').onclick = () => {
   setHapticsOn(hapticsToggle && hapticsToggle.classList.contains('on'));
   const nextTap = !!(tapSelectToggle && tapSelectToggle.classList.contains('on'));
   setTapSelect(nextTap);
   applyTapMode(nextTap);
+  if (settingsInitials) {
+    const initials = (settingsInitials.value || '').trim().toUpperCase().slice(0, 6);
+    setStoredName(initials);
+  }
+  updateDailyRank();
   closeSettings();
-  showToast('Settings saved');
 };
+// Tapping the dim backdrop also closes (saving isn't needed — nothing changed
+// until Done, but closing is the expected gesture).
+settingsModal.addEventListener('click', e => {
+  if (e.target === settingsModal) closeSettings();
+});
+document.getElementById('gameSettingsGear').onclick = openSettings;
 
 // Switch selection mode live: clear any in-progress selection and refresh the
-// word-bar hint so the change takes effect without a reload.
+// word-bar hint so the change takes effect without a reload. Guards the board
+// ops so opening Settings from the menu (no game rendered) never throws.
 function applyTapMode(on) {
   tapMode = on;
   document.body.classList.toggle('tap-mode', on);
-  isDragging = false;
-  path = [];
-  if (typeof highlightPath === 'function') highlightPath();
-  if (typeof updateWordBar === 'function') updateWordBar();
+  const gs = document.getElementById('gameScreen');
+  if (gs && gs.classList.contains('active') && gridEl.children.length) {
+    isDragging = false;
+    path = [];
+    highlightPath();
+    updateWordBar();
+  }
 }
 // Reflect the persisted setting at startup.
 document.body.classList.toggle('tap-mode', tapMode);
