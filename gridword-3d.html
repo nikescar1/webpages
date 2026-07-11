@@ -20,8 +20,8 @@
     --line-soft: #E5D9C7;
 
     /* Word-length palette (3..11) */
-    --c3:  #FF5C8A;
-    --c4:  #FF8A3D;
+    --c3:  #FF2E4D;
+    --c4:  #FF9A2E;
     --c5:  #FFC93C;
     --c6:  #6FE36F;
     --c7:  #2DD4BF;
@@ -154,12 +154,21 @@
   .settings-gear:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
   .settings-gear svg { width: 22px; height: 22px; display: block; }
 
-  /* Fixed-size menu design, uniformly zoomed to fit like the playfield. */
+  /* Fixed-size menu design, uniformly scaled to fit like the playfield.
+     .home-scale is sized in JS to the post-scale footprint so the flex parent
+     (#homeScreen) centers it correctly; .home-inner keeps its true fixed size
+     and is visually scaled with `transform`, which — unlike CSS `zoom` — is
+     standard and behaves consistently across Chrome and iOS Safari. */
+  .home-scale {
+    position: relative; flex: none;
+  }
   .home-inner {
     width: 480px;
     padding: 0 16px;
     display: flex; flex-direction: column; gap: 20px;
     flex: none;
+    position: absolute; top: 0; left: 0;
+    transform-origin: top left;
   }
 
   .home-logo {
@@ -870,15 +879,26 @@
   }
   #gameScreen.active { display: flex; }
 
-  /* The whole playfield is a fixed-size design that's uniformly zoomed to fit
+  /* The whole playfield is a fixed-size design that's uniformly scaled to fit
      the screen (set in JS), so every element — tiles, borders, fonts — stays
-     the same size relative to the board at any aspect ratio. */
+     the same size relative to the board at any aspect ratio. #playCoreScale is
+     sized to the post-scale footprint so the flex parent (#gameScreen) reserves
+     the right amount of space; #playCore keeps its true fixed size and is
+     visually scaled with `transform`, which — unlike CSS `zoom` — is standard
+     and behaves consistently across Chrome and iOS Safari (zoom has known
+     coordinate-space bugs with getBoundingClientRect/pointer events in
+     WebKit, which broke drag-to-select on iOS). */
+  #playCoreScale {
+    position: relative; flex: none;
+  }
   #playCore {
     width: 504px;
     padding: 0 12px;
     display: flex; flex-direction: column; align-items: center;
     gap: 10px;
     flex: none;
+    position: absolute; top: 0; left: 0;
+    transform-origin: top left;
   }
 
   .header {
@@ -2020,7 +2040,7 @@
     top: 38%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0.3) rotate(-8deg);
-    background: linear-gradient(135deg, #FF5C8A, #FF8A3D, #FFC93C, #6FE36F, #2DD4BF, #38BDF8, #A855F7, #EC4899);
+    background: linear-gradient(135deg, #FF2E4D, #FF9A2E, #FFC93C, #6FE36F, #2DD4BF, #38BDF8, #A855F7, #EC4899);
     background-size: 300% 300%;
     border: 4px solid var(--ink);
     border-radius: 18px;
@@ -2180,6 +2200,7 @@ body.no-webgl #gemDbgBtn { display: none; }
 </div>
 
 <div id="homeScreen">
+  <div class="home-scale">
   <div class="home-inner">
     <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2233,9 +2254,11 @@ body.no-webgl #gemDbgBtn { display: none; }
     </div>
 
   </div>
+  </div>
 </div>
 
 <div id="gameScreen">
+  <div id="playCoreScale">
   <div id="playCore">
   <div class="header">
     <div class="header-side header-left">
@@ -2302,6 +2325,7 @@ body.no-webgl #gemDbgBtn { display: none; }
     </div>
 
   </div><!-- /#playCore -->
+  </div><!-- /#playCoreScale -->
 
   <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
 
@@ -3634,7 +3658,7 @@ function updateScoreDisplay() {
 // Color for a given word length
 function colorForLen(len) {
   const map = {
-    3: '#FF5C8A', 4: '#FF8A3D', 5: '#FFC93C', 6: '#6FE36F',
+    3: '#FF2E4D', 4: '#FF9A2E', 5: '#FFC93C', 6: '#6FE36F',
     7: '#2DD4BF', 8: '#38BDF8', 9: '#6366F1', 10: '#A855F7',
     11: '#EC4899'
   };
@@ -3642,7 +3666,7 @@ function colorForLen(len) {
 }
 
 // Small palette for particles regardless of word length
-const PARTICLE_COLORS = ['#FF5C8A','#FF8A3D','#FFC93C','#6FE36F','#2DD4BF','#38BDF8','#A855F7','#EC4899'];
+const PARTICLE_COLORS = ['#FF2E4D','#FF9A2E','#FFC93C','#6FE36F','#2DD4BF','#38BDF8','#A855F7','#EC4899'];
 
 function emitParticles(cellEl, count, baseColor) {
   const rect = cellEl.getBoundingClientRect();
@@ -4415,10 +4439,14 @@ function submitWord(word, cellPath) {
   // Total animation duration for stagger
   const animMs = upgradedCells.length * 35;
 
-  // Update score after stagger, then check for the all-tiles bonus.
+  // Update score after stagger, then check for the all-tiles bonus. The best
+  // score is saved after the bonus resolves so a bonus earned on this word is
+  // included in the saved total (bonusScore is applied synchronously inside
+  // maybeAwardAllTilesBonus, so no further delay is needed after it returns).
   setTimeout(() => {
     updateScoreDisplay();
     maybeAwardAllTilesBonus();
+    if (MODE === 'daily') onDailyWordScored();
   }, animMs + 50);
 
   // Haptic feedback scaled to point gain (lighter buzz on a no-gain reuse)
@@ -4458,8 +4486,9 @@ function submitWord(word, cellPath) {
   saveDailyProgress();
 
   // No manual submit anymore — a scored word updates the best, refreshes the
-  // live rank, and (debounced) posts to the daily leaderboard.
-  if (MODE === 'daily') onDailyWordScored();
+  // live rank, and (debounced) posts to the daily leaderboard. That call is
+  // deferred above (after the all-tiles bonus check) so a bonus earned on
+  // this word is included in the saved best score.
 }
 
 function flashWordBar(type, dur) {
@@ -4576,16 +4605,17 @@ function updateFoundLayout() {
   const gs = document.getElementById('gameScreen');
   if (!gs || !gs.classList.contains('active')) return;
   const core = document.getElementById('playCore');
+  const scaleWrap = document.getElementById('playCoreScale');
   const panel = document.getElementById('foundPanel');
-  if (!core) return;
+  if (!core || !scaleWrap) return;
 
   gs.style.setProperty('--grid', String(GRID_SIZE));
 
   const vw = gs.clientWidth;
   const vh = gs.clientHeight;
 
-  // Measure the fixed-design play-core at zoom 1, then zoom it to fit.
-  core.style.zoom = '1';
+  // Measure the fixed-design play-core (its true, unscaled size — `transform`
+  // doesn't affect offsetWidth/offsetHeight, unlike the old `zoom` approach).
   const coreW = core.offsetWidth;    // ~504
   const coreH = core.offsetHeight;   // varies by mode / found-sort presence
   if (!coreW || !coreH) return;
@@ -4616,7 +4646,9 @@ function updateFoundLayout() {
     zoom = Math.min(zoomW, (vh - RESERVE) / coreH);
   }
   zoom = Math.max(0.3, zoom);
-  core.style.zoom = String(zoom);
+  core.style.transform = `scale(${zoom})`;
+  scaleWrap.style.width = (coreW * zoom) + 'px';
+  scaleWrap.style.height = (coreH * zoom) + 'px';
   playZoom = zoom;
 
   // The found panel (not zoomed) matches the zoomed board width when inline;
@@ -4652,12 +4684,14 @@ function updateHomeLayout() {
   const hs = document.getElementById('homeScreen');
   if (!hs || !hs.classList.contains('active')) return;
   const inner = hs.querySelector('.home-inner');
-  if (!inner) return;
-  inner.style.zoom = '1';
+  const scaleWrap = hs.querySelector('.home-scale');
+  if (!inner || !scaleWrap) return;
   const w = inner.offsetWidth, h = inner.offsetHeight;
   if (!w || !h) return;
-  const zoom = Math.min(hs.clientWidth / w, hs.clientHeight / h, 1);
-  inner.style.zoom = String(Math.max(0.4, zoom));
+  const zoom = Math.max(0.4, Math.min(hs.clientWidth / w, hs.clientHeight / h, 1));
+  inner.style.transform = `scale(${zoom})`;
+  scaleWrap.style.width = (w * zoom) + 'px';
+  scaleWrap.style.height = (h * zoom) + 'px';
 }
 
 let foundLayoutTimer = 0;
@@ -5479,14 +5513,14 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
   const GEM_HALF = 0.338181, DIAG = GEM_HALF * 2 * Math.SQRT2;
   const FRAME_MS = 1000 / 60;
 
-  const PALETTE = {3:'#FF5C8A',4:'#FF8A3D',5:'#FFC93C',6:'#6FE36F',7:'#2DD4BF',
+  const PALETTE = {3:'#FF2E4D',4:'#FF9A2E',5:'#FFC93C',6:'#6FE36F',7:'#2DD4BF',
     8:'#38BDF8',9:'#6366F1',10:'#A855F7',11:'#EC4899'};
   function colorForScore(s){ if (s<3) return null; if (s>=12) return '#C77DFF'; return PALETTE[s]||'#A855F7'; }
 
   // ---- tunable settings ----------------------------------------------------
   const DEFAULTS = {
     metal: { envLight: 0, refl: 0.64, fresPow: 0.2, shimmer: 0.04, color: '#d1d6e5' },
-    jewel: { envLight: 0, refl: 0.67, fresPow: 8, emission: 0.98, alpha: 1, rimAlpha: 1 },
+    jewel: { envLight: 1, refl: 1, fresPow: 8, emission: 0.5, alpha: 1, rimAlpha: 1 },
     glitter: { amount: 1.3, scale: 0.67, scroll: 0.8, twinkle: 6, threshold: 0.99 },
     select: { base: 0.3, fres: 0.3 },
     shape: { gemScale: 1 },
@@ -5648,7 +5682,7 @@ window.FLIP_SOUND_URI='data:audio/wav;base64,UklGRjZ0AABXQVZFZm10IBAAAAABAAEAIlY
     G.u = {
       envMap: { value: null }, uTime: { value: 0 },
       mEnvLight: { value: 0 }, mRefl: { value: 0.64 }, mFresPow: { value: 0.2 }, mShimmer: { value: 0.04 }, mColor: { value: new THREE.Color('#d1d6e5') },
-      jEnvLight: { value: 0 }, jRefl: { value: 0.67 }, jFresPow: { value: 8 }, jEmission: { value: 0.98 }, jAlpha: { value: 1 }, jRim: { value: 1 },
+      jEnvLight: { value: 1 }, jRefl: { value: 1 }, jFresPow: { value: 8 }, jEmission: { value: 0.5 }, jAlpha: { value: 1 }, jRim: { value: 1 },
       gAmt: { value: 1.3 }, gScale: { value: 0.67 }, gScroll: { value: 0.8 }, gTwinkle: { value: 6 }, gThresh: { value: 0.99 },
       selBase: { value: 0.3 }, selFres: { value: 0.3 },
     };
