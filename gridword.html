@@ -124,18 +124,19 @@
   /* ── HOME / MENU ── */
   #homeScreen {
     display: none; flex-direction: column;
-    height: 100%; overflow-y: auto;
-    padding: 20px 16px 36px;
+    align-items: center; justify-content: center;
+    height: 100%; overflow: hidden;
+    padding: 8px 0;
     position: relative; z-index: 1;
   }
   #homeScreen.active { display: flex; }
   #homeScreen::-webkit-scrollbar { width: 0; }
 
   .settings-gear {
-    position: absolute;
-    top: 14px; right: 14px;
-    z-index: 5;
+    align-self: flex-end;
+    margin-bottom: -8px;
     width: 42px; height: 42px;
+    flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     background: var(--surface);
     border: 2.5px solid var(--ink);
@@ -150,10 +151,12 @@
   .settings-gear:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
   .settings-gear svg { width: 22px; height: 22px; display: block; }
 
+  /* Fixed-size menu design, uniformly zoomed to fit like the playfield. */
   .home-inner {
-    width: 100%; max-width: 480px;
-    margin: 0 auto;
+    width: 480px;
+    padding: 0 16px;
     display: flex; flex-direction: column; gap: 20px;
+    flex: none;
   }
 
   .home-logo {
@@ -164,12 +167,13 @@
   .home-logo .word {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 56px;
-    letter-spacing: 2px;
+    font-size: clamp(32px, 13vw, 56px);
+    letter-spacing: 1px;
     color: var(--ink);
     display: inline-block;
     line-height: 1;
     transform: rotate(-2deg);
+    white-space: nowrap;
   }
   .home-logo .word .pop {
     display: inline-block;
@@ -855,19 +859,70 @@
   /* ── GAME LAYOUT ── */
   #gameScreen {
     display: none; flex-direction: column;
-    align-items: center; justify-content: center;
+    align-items: center; justify-content: flex-start;
     height: 100%;
-    padding: 10px 12px 8px; gap: 10px;
+    padding: 6px 0 4px; gap: 6px;
     position: relative; z-index: 1;
+    overflow: hidden;
   }
   #gameScreen.active { display: flex; }
+
+  /* The whole playfield is a fixed-size design that's uniformly zoomed to fit
+     the screen (set in JS), so every element — tiles, borders, fonts — stays
+     the same size relative to the board at any aspect ratio. */
+  #playCore {
+    width: 504px;
+    padding: 0 12px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+    flex: none;
+  }
 
   .header {
     display: flex; align-items: center;
     justify-content: space-between;
     width: 100%; max-width: 480px;
     gap: 10px;
+    position: relative;
   }
+  .header-side { display: flex; align-items: center; gap: 8px; z-index: 1; }
+  .header-right { justify-content: flex-end; }
+
+  .rank-chip {
+    display: flex; flex-direction: column;
+    align-items: center; line-height: 1;
+    background: var(--surface);
+    border: 2.5px solid var(--ink);
+    border-radius: 12px;
+    padding: 4px 10px;
+    box-shadow: 3px 3px 0 0 var(--shadow-color);
+    cursor: pointer; touch-action: manipulation;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .rank-chip:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
+  .rank-chip-label {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 8px; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 1.5px;
+  }
+  .rank-chip-value {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 20px; color: var(--ink); line-height: 1; margin-top: 1px;
+  }
+
+  .gear-btn {
+    width: 40px; height: 40px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface);
+    border: 2.5px solid var(--ink);
+    border-radius: 12px;
+    color: var(--ink);
+    box-shadow: 3px 3px 0 0 var(--shadow-color);
+    cursor: pointer; touch-action: manipulation;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .gear-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--shadow-color); }
+  .gear-btn svg { width: 21px; height: 21px; display: block; }
 
   .back-btn {
     background: var(--surface);
@@ -888,17 +943,19 @@
   .back-btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--shadow-color); }
 
   .game-title {
-    flex: 1;
+    position: absolute; left: 50%; transform: translateX(-50%);
     display: flex; flex-direction: column;
     align-items: center; line-height: 1;
+    pointer-events: none;
   }
   .game-title .logo {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 22px;
+    font-size: 17px;
     color: var(--ink);
-    text-shadow: 2px 2px 0 var(--c5);
-    letter-spacing: 0.5px;
+    text-shadow: 1.5px 1.5px 0 var(--c5);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
   }
   .game-title .mode-label {
     font-family: 'Nunito', sans-serif;
@@ -918,9 +975,9 @@
     background: var(--surface);
     border: 2.5px solid var(--ink);
     border-radius: 12px;
-    padding: 5px 12px;
+    padding: 4px 9px;
     box-shadow: 3px 3px 0 0 var(--shadow-color);
-    min-width: 78px;
+    min-width: 58px;
   }
   .score-label {
     font-family: 'Nunito', sans-serif;
@@ -933,7 +990,7 @@
   .score-value {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
-    font-size: 26px;
+    font-size: 21px;
     color: var(--ink);
     line-height: 1;
     margin-top: 1px;
@@ -966,9 +1023,36 @@
     overflow: hidden; padding: 0 16px; flex-shrink: 0;
   }
   .word-bar.dragging { color: var(--ink); }
-  /* Tap mode: the word bar is the submit control. */
+  /* Tap mode: the word bar is the submit control, and it moves below the board
+     (under the rotate buttons) via flex order — it's the last thing you touch. */
   body.tap-mode .word-bar { cursor: pointer; }
   body.tap-mode .word-bar:active { transform: translateY(1px); }
+  body.tap-mode #playCore .header       { order: 0; }
+  body.tap-mode #playCore .size-selector { order: 1; }
+  body.tap-mode #playCore .grid-wrap     { order: 2; }
+  body.tap-mode #playCore .word-bar      { order: 3; }
+  body.tap-mode #playCore .bonus-strip   { order: 4; }
+
+  /* One-time hint pointing at the word bar in tap mode. */
+  .tap-hint {
+    position: fixed; z-index: 90;
+    transform: translate(-50%, -100%);
+    background: var(--ink); color: var(--bg);
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 12px; letter-spacing: 0.3px;
+    padding: 7px 12px; border-radius: 10px;
+    box-shadow: 0 5px 16px rgba(42, 30, 63, 0.32);
+    white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity 0.22s;
+    display: none;
+  }
+  .tap-hint.show { display: block; opacity: 1; }
+  .tap-hint::after {
+    content: ''; position: absolute; left: 50%; bottom: -6px;
+    transform: translateX(-50%);
+    border: 6px solid transparent; border-bottom: none;
+    border-top-color: var(--ink);
+  }
   .word-bar[data-len="3"].valid { background: var(--c3); color: white; }
   .word-bar[data-len="4"].valid { background: var(--c4); color: white; }
   .word-bar[data-len="5"].valid { background: var(--c5); color: var(--ink); }
@@ -1137,7 +1221,9 @@
   .cell .letter {
     font-family: 'Nunito', sans-serif;
     font-weight: 900;
-    font-size: clamp(15px, 4.4vw, 26px);
+    /* Scale with the actual tile size (board width / grid) so letters stay the
+       same relative size across aspect ratios and board sizes. */
+    font-size: calc(480px / var(--grid, 8) * 0.44);
     line-height: 1; color: var(--ink);
     /* Counter-rotate against the board so letters stay upright when the
        board spins. Timing matches .grid's rotation. */
@@ -1149,7 +1235,7 @@
   .cell .pts {
     font-family: 'Nunito', sans-serif;
     font-variant-numeric: tabular-nums;
-    font-size: clamp(10px, 2.5vw, 13px);
+    font-size: calc(480px / var(--grid, 8) * 0.22);
     font-weight: 700;
     position: absolute;
     bottom: 1px; right: 4px;
@@ -1330,6 +1416,20 @@
   .rotate-left { left: 0; }
   .rotate-right { right: 0; }
 
+  /* Free-play "New Board" sits centered between the two rotate buttons, in the
+     board's bottom margin. Hidden in daily. */
+  .new-board-btn {
+    position: absolute;
+    bottom: -52px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    height: 44px;
+    padding: 0 18px;
+    white-space: nowrap;
+  }
+  .new-board-btn:active { transform: translate(-50%, 2px); }
+  #gameScreen.daily-mode .new-board-btn { display: none; }
+
   /* Press-and-hold magnifier lens. */
   .lens {
     position: fixed;
@@ -1378,6 +1478,9 @@
     text-transform: uppercase;
     letter-spacing: 1px;
   }
+  /* Docked to the far right of the sort row. */
+  .found-sort .words-found { margin-left: auto; }
+  #gameScreen.daily-mode .info-bar { display: none; }  /* no "New Board" in daily */
   .btn {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
@@ -1446,6 +1549,9 @@
   }
   .found-handle-chevron { font-size: 11px; opacity: 0.6; transition: transform 0.3s; }
   .found-panel.sheet.open .found-handle-chevron { transform: rotate(180deg); }
+  /* When expanded, the sort row's "N words found" is visible, so the count
+     next to the arrow is redundant — hide it and keep just the chevron. */
+  .found-panel.sheet.open .found-handle-count { display: none; }
   .found-handle.pulse { animation: foundHandlePulse 0.5s ease; }
   @keyframes foundHandlePulse {
     0%, 100% { transform: translateY(0); }
@@ -1456,8 +1562,7 @@
 
   /* Reserve room for the collapsed handle so it never overlaps the info bar,
      and drop the now-duplicated word count from the info bar. */
-  #gameScreen.has-sheet { padding-bottom: 54px; }
-  #gameScreen.has-sheet .words-found { display: none; }
+  #gameScreen.has-sheet { padding-bottom: 74px; }
 
   /* Earned all-tiles bonuses for this round */
   .bonus-strip {
@@ -1526,7 +1631,7 @@
   }
 
   .found-words-list {
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: 100%;
     flex: 1; min-height: 0;
     overflow-y: auto;
     display: flex; flex-wrap: wrap;
@@ -1732,6 +1837,20 @@
     transition: background 0.15s;
   }
   .name-input:focus { background: white; }
+  .settings-initials-row { display: flex; flex-direction: column; gap: 2px; }
+  .settings-initials-row .toggle-label {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 13px; color: var(--ink); letter-spacing: 0.3px;
+  }
+  .settings-initials-row .toggle-sub {
+    font-family: 'Nunito', sans-serif; font-weight: 600;
+    font-size: 11px; color: var(--ink-soft);
+  }
+  .settings-initials {
+    width: 100%; margin: 6px 0 0;
+    font-size: 18px; letter-spacing: 4px;
+    padding: 8px 12px;
+  }
 
   .modal-lb {
     margin-top: 14px;
@@ -1953,13 +2072,13 @@
 </div>
 
 <div id="homeScreen">
-  <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
+  <div class="home-inner">
+    <button class="settings-gear" id="settingsGear" type="button" aria-label="Settings" title="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="3"></circle>
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
     </svg>
-  </button>
-  <div class="home-inner">
+    </button>
     <div class="home-logo">
       <div class="word"><span class="pop">G</span><span class="pop">R</span><span class="pop">I</span><span class="pop">D</span><span class="pop">W</span><span class="pop">O</span><span class="pop">R</span><span class="pop">D</span></div>
       <div class="tagline">Spell · Score · Repeat</div>
@@ -2009,15 +2128,30 @@
 </div>
 
 <div id="gameScreen">
+  <div id="playCore">
   <div class="header">
-    <button class="back-btn" id="backBtn" title="Back">←</button>
+    <div class="header-side header-left">
+      <button class="back-btn" id="backBtn" title="Back">←</button>
+      <button class="rank-chip" id="rankChip" type="button" title="See standings on the menu" style="display:none">
+        <span class="rank-chip-label">Rank</span>
+        <span class="rank-chip-value" id="rankValue">—</span>
+      </button>
+    </div>
     <div class="game-title">
       <div class="logo">GRIDWORD</div>
       <div class="mode-label" id="modeLabel">Free Play</div>
     </div>
-    <div class="score-display">
-      <span class="score-label">Score</span>
-      <span class="score-value" id="totalScore">0</span>
+    <div class="header-side header-right">
+      <div class="score-display">
+        <span class="score-label">Score</span>
+        <span class="score-value" id="totalScore">0</span>
+      </div>
+      <button class="gear-btn game-gear" id="gameSettingsGear" type="button" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -2051,23 +2185,17 @@
         <path d="M21 3v5h-5"/>
       </svg>
     </button>
+    <button class="btn btn-reset new-board-btn" id="newBoardBtn">New Board</button>
   </div>
+
+    <div class="bonus-strip" id="bonusStrip" style="display:none">
+      <span class="bonus-strip-label">Bonuses</span>
+      <span class="bonus-chips" id="bonusChips"></span>
+    </div>
+
+  </div><!-- /#playCore -->
 
   <div class="lens" id="magnifier"><div class="lens-inner" id="magnifierInner"></div></div>
-
-  <div class="info-bar">
-    <span class="words-found" id="wordsFound">0 words found</span>
-    <div>
-      <button class="btn btn-reset" id="newBoardBtn">New</button>
-      <button class="btn btn-reset" id="freshBoardBtn" style="display:none">Restart</button>
-      <button class="btn btn-submit" id="submitBtn">Submit</button>
-    </div>
-  </div>
-
-  <div class="bonus-strip" id="bonusStrip" style="display:none">
-    <span class="bonus-strip-label">Bonuses</span>
-    <span class="bonus-chips" id="bonusChips"></span>
-  </div>
 
   <div class="found-panel" id="foundPanel">
     <button class="found-handle" id="foundHandle" type="button" aria-label="Toggle found words">
@@ -2078,10 +2206,13 @@
       <span class="found-sort-label">Sort</span>
       <button class="sort-btn active" data-sort="recent">Recent</button>
       <button class="sort-btn" data-sort="value">Value</button>
+      <span class="words-found" id="wordsFound">0 words found</span>
     </div>
     <div class="found-words-list" id="foundList"></div>
   </div>
 </div>
+
+<div class="tap-hint" id="tapHint">Tap the word to submit</div>
 
 <div class="modal-overlay" id="modal">
   <div class="modal">
@@ -2119,7 +2250,7 @@
       <div class="settings-row settings-toggle">
         <div>
           <div class="toggle-label">Tap to select</div>
-          <div class="toggle-sub">Tap letters to build a word, then tap the word bar above the board to submit (instead of dragging).</div>
+          <div class="toggle-sub">Tap letters to build a word, then tap the word bar to submit (instead of dragging).</div>
         </div>
         <div class="toggle-switch" id="tapSelectToggle" role="switch" aria-checked="false" tabindex="0"></div>
       </div>
@@ -2130,10 +2261,26 @@
         </div>
         <div class="toggle-switch" id="hapticsToggle" role="switch" aria-checked="false" tabindex="0"></div>
       </div>
+      <div class="settings-row settings-initials-row">
+        <div class="toggle-label">Initials</div>
+        <div class="toggle-sub">Shown on the daily leaderboard when your score posts.</div>
+        <input class="name-input settings-initials" id="settingsInitials" type="text" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC">
+      </div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-reset" id="settingsCancelBtn">Cancel</button>
-      <button class="btn btn-submit" id="settingsSaveBtn">Save</button>
+      <button class="btn btn-submit" id="settingsDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── STANDINGS (rank) POPUP ── -->
+<div class="modal-overlay" id="rankModal">
+  <div class="modal">
+    <h2>STANDINGS</h2>
+    <div class="modal-sub" id="rankModalSub"></div>
+    <div class="modal-lb-list" id="rankLbList"></div>
+    <div class="btn-row">
+      <button class="btn btn-submit" id="rankDoneBtn">Done</button>
     </div>
   </div>
 </div>
@@ -2543,6 +2690,7 @@ function initHome() {
   lbHomeState.dateKey = dk;
   renderHomeLeaderboard();
   refreshHomeLeaderboard();
+  updateHomeLayout();
 }
 
 // State for the inline home leaderboard so prev/next-day nav can walk
@@ -2640,6 +2788,7 @@ function renderHomeLeaderboard() {
   }
   // Always start scrolled to the top so ranks 1-9 (+ your row) are visible.
   listEl.scrollTop = 0;
+  updateHomeLayout();   // content height may have changed → refit
 }
 
 async function refreshHomeLeaderboard() {
@@ -2692,23 +2841,24 @@ function startFreePlay() {
 
 function enterGame() {
   homeScreen.classList.remove('active');
-  document.getElementById('gameScreen').classList.add('active');
+  const gameScreen = document.getElementById('gameScreen');
+  gameScreen.classList.add('active');
+  gameScreen.classList.toggle('daily-mode', MODE === 'daily');
 
   const sizeSel = document.getElementById('sizeSelector');
   const modeLabel = document.getElementById('modeLabel');
-  const freshBtn = document.getElementById('freshBoardBtn');
+  const rankChip = document.getElementById('rankChip');
   if (MODE === 'daily') {
     sizeSel.style.display = 'none';
     modeLabel.textContent = 'Daily';
     modeLabel.classList.add('daily');
-    document.getElementById('newBoardBtn').style.display = 'none';
-    if (freshBtn) freshBtn.style.display = '';
+    rankChip.style.display = '';
+    loadDailyLeaderboard();   // fetch today's board so the rank chip is live
   } else {
     sizeSel.style.display = '';
     modeLabel.textContent = 'Free Play';
     modeLabel.classList.remove('daily');
-    document.getElementById('newBoardBtn').style.display = '';
-    if (freshBtn) freshBtn.style.display = 'none';
+    rankChip.style.display = 'none';
   }
 
   for (const b of document.querySelectorAll('#sizeOptions .size-btn')) {
@@ -2720,9 +2870,9 @@ function enterGame() {
 
 function exitToHome() {
   // Defensive: snapshot daily progress on the way out so the user never
-  // loses state to a missed save site (e.g. exiting via the modal's back
-  // button without going through the leaderboard submit flow).
+  // loses state to a missed save site.
   if (MODE === 'daily') saveDailyProgress();
+  hideTapHint();
   document.getElementById('gameScreen').classList.remove('active');
   homeScreen.classList.add('active');
   closeModal();
@@ -3291,6 +3441,7 @@ function newGame(opts) {
   wordBar.removeAttribute('data-len');
   wordBar.textContent = spellHint();
   clearTrail();
+  hideTapHint();
   refreshSubmitButton();
   updateFoundLayout();
   applyBonusBackground();   // cream on a fresh board; tier colour when resuming
@@ -3450,6 +3601,19 @@ function maybeAwardAllTilesBonus() {
   playAllTilesBonus(minCell, gained);
 }
 
+// A rising rumble that grows with the tier and ends in a big triple thump —
+// tuned to match the diagonal rainbow-wave cascade + confetti of the bonus.
+function allTilesBonusHaptic(level) {
+  const steps = Math.min(3 + level, 11);   // more build-up at higher tiers
+  const pat = [];
+  for (let i = 0; i < steps; i++) {
+    pat.push(10 + i * 6);                    // buzz, lengthening
+    pat.push(Math.max(18, 46 - i * 3));      // gap, tightening
+  }
+  pat.push(80, 60, 160);                     // finale: thump — thump — BOOM
+  return pat;
+}
+
 function playAllTilesBonus(level, gained) {
   // Reflect the new tier in the page background and the earned-bonuses strip.
   applyBonusBackground();
@@ -3471,7 +3635,7 @@ function playAllTilesBonus(level, gained) {
   // Confetti + big shake
   fireConfetti(90);
   shakeGrid('big');
-  haptic([18, 50, 18, 50, 30, 60, 40]);
+  haptic(allTilesBonusHaptic(level));
 
   // Rainbow wave pulse over every cell, diagonal cascade.
   for (let i = 0; i < CELL_COUNT; i++) {
@@ -3679,35 +3843,83 @@ function tapTile(idx) {
   if (path.length === 0) {
     path = [idx];
     haptic(8);
-    highlightPath(); updateWordBar();
+    highlightPath(); updateWordBar(); updateTapHints();
     return;
   }
   const last = path[path.length - 1];
   if (idx === last) {
     path.pop();
     haptic(5);
-    highlightPath(); updateWordBar();
+    highlightPath(); updateWordBar(); updateTapHints();
     return;
   }
   if (isAdjacent(last, idx)) {
     path.push(idx);
     haptic(6);
-    highlightPath(); updateWordBar();
+    highlightPath(); updateWordBar(); updateTapHints();
     return;
   }
   haptic(10);   // not adjacent — reject
 }
 
+// Tapping the word bar: an eligible word is submitted; an ineligible one is
+// cleared. Each action retires its hint permanently.
 function submitCurrentSelection() {
   if (path.length === 0) return;
-  const word = path.map(i => grid[i]).join('');
-  submitWord(word, [...path]);
-  path = [];
-  highlightPath();
+  const wLower = path.map(i => grid[i]).join('').toLowerCase();
+  const valid = wLower.length >= 3 && (BOARD_DICT.has(wLower) || DICT.has(wLower));
+  if (valid) {
+    markTapHintDone('submit');
+    submitWord(wLower, [...path]);   // owns its word-bar feedback
+    path = [];
+    highlightPath();
+  } else {
+    markTapHintDone('clear');
+    haptic(6);
+    path = [];
+    highlightPath();
+    updateWordBar();                 // back to the placeholder
+  }
+  hideTapHint();
 }
 
 // Placeholder shown in the word bar when nothing is selected.
 function spellHint() { return tapMode ? 'tap to spell' : 'drag to spell'; }
+
+// Two persistent tap-mode hints, each shown until the player performs its
+// action once (then never again). While a word is selected the hint reflects
+// eligibility: "tap to submit" for a valid word, "tap to clear" otherwise —
+// so it swaps as the selection crosses in/out of validity, and hides when the
+// selection is empty.
+const LS_HINT_SUBMIT_KEY = LS_PREFIX + 'hintSubmitSeen';
+const LS_HINT_CLEAR_KEY  = LS_PREFIX + 'hintClearSeen';
+function hintDone(kind) {
+  try { return localStorage.getItem(kind === 'submit' ? LS_HINT_SUBMIT_KEY : LS_HINT_CLEAR_KEY) === '1'; }
+  catch { return false; }
+}
+function markTapHintDone(kind) {
+  try { localStorage.setItem(kind === 'submit' ? LS_HINT_SUBMIT_KEY : LS_HINT_CLEAR_KEY, '1'); } catch {}
+}
+function updateTapHints() {
+  const hint = document.getElementById('tapHint');
+  if (!hint) return;
+  if (!tapMode || path.length === 0) { hint.classList.remove('show'); return; }
+  const wLower = path.map(i => grid[i]).join('').toLowerCase();
+  const valid = wLower.length >= 3 && (BOARD_DICT.has(wLower) || DICT.has(wLower));
+  let text = null;
+  if (valid && !hintDone('submit')) text = 'Tap the word to submit';
+  else if (!valid && !hintDone('clear')) text = 'Tap the word to clear';
+  if (!text) { hint.classList.remove('show'); return; }
+  hint.textContent = text;
+  const r = wordBar.getBoundingClientRect();
+  hint.style.left = Math.round(r.left + r.width / 2) + 'px';
+  hint.style.top = Math.round(r.top - 8) + 'px';
+  hint.classList.add('show');
+}
+function hideTapHint() {
+  const hint = document.getElementById('tapHint');
+  if (hint) hint.classList.remove('show');
+}
 
 function highlightPath() {
   for (let i = 0; i < CELL_COUNT; i++) getCellEl(i).classList.remove('in-path');
@@ -3736,14 +3948,19 @@ function updateWordBar() {
   wordBar.textContent = word;
 }
 
+// The playfield is zoomed by `playZoom`. getBoundingClientRect returns zoomed
+// (screen) coordinates, but the trail SVG lives inside the zoomed board and
+// uses the board's own un-zoomed coordinate space — so screen offsets are
+// divided back by the zoom to place the trail correctly.
+let playZoom = 1;
 function getCellCenter(idx) {
   const cell = getCellEl(idx);
   const wrap = document.getElementById('gridWrap');
   const wr = wrap.getBoundingClientRect();
   const cr = cell.getBoundingClientRect();
   return {
-    x: cr.left + cr.width / 2 - wr.left,
-    y: cr.top + cr.height / 2 - wr.top
+    x: (cr.left + cr.width / 2 - wr.left) / playZoom,
+    y: (cr.top + cr.height / 2 - wr.top) / playZoom
   };
 }
 
@@ -3781,8 +3998,8 @@ function drawTrail() {
 
   if (isDragging && pts.length >= 1) {
     const last = pts[pts.length - 1];
-    const px = pointerX - wr.left;
-    const py = pointerY - wr.top;
+    const px = (pointerX - wr.left) / playZoom;
+    const py = (pointerY - wr.top) / playZoom;
     const live = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     live.setAttribute('x1', last.x); live.setAttribute('y1', last.y);
     live.setAttribute('x2', px); live.setAttribute('y2', py);
@@ -4005,16 +4222,6 @@ wordBar.addEventListener('click', () => {
 });
 
 document.getElementById('newBoardBtn').onclick = () => newGame();
-document.getElementById('freshBoardBtn').onclick = () => {
-  if (foundWords.length === 0) {
-    // Nothing to lose, just start fresh.
-    newGame({ fresh: true });
-    return;
-  }
-  if (confirm('Restart this daily challenge? Your current progress will be lost.')) {
-    newGame({ fresh: true });
-  }
-};
 
 // ══════════════════════════════════════════════════════════════
 // WORD SUBMISSION & SCORING
@@ -4139,6 +4346,10 @@ function submitWord(word, cellPath) {
 
   // Persist daily progress so the user can resume later.
   saveDailyProgress();
+
+  // No manual submit anymore — a scored word updates the best, refreshes the
+  // live rank, and (debounced) posts to the daily leaderboard.
+  if (MODE === 'daily') onDailyWordScored();
 }
 
 function flashWordBar(type, dur) {
@@ -4206,7 +4417,8 @@ function sortFoundList() {
 }
 
 function updateSortVisibility() {
-  document.getElementById('foundSort').style.display = foundWords.length ? '' : 'none';
+  // Always visible now — the row also holds the word count on the right.
+  document.getElementById('foundSort').style.display = '';
   updateFoundHandle();
 }
 
@@ -4255,16 +4467,46 @@ function measureH(sel) {
 function updateFoundLayout() {
   const gs = document.getElementById('gameScreen');
   if (!gs || !gs.classList.contains('active')) return;
+  const core = document.getElementById('playCore');
   const panel = document.getElementById('foundPanel');
+  if (!core) return;
 
-  // Hypothetical space for an inline list = viewport minus the fixed chrome
-  // above it and the square board (+ its rotate-button margin).
-  const boardOuter = gridWrap.offsetHeight + 56;
-  const above = measureH('.header') + measureH('.word-bar') +
-                measureH('#sizeSelector') + boardOuter + measureH('.info-bar');
-  const avail = gs.clientHeight - above - 68;   // ~gaps + vertical padding
+  gs.style.setProperty('--grid', String(GRID_SIZE));
 
-  const needSheet = avail < FOUND_SHEET_MIN;
+  const vw = gs.clientWidth;
+  const vh = gs.clientHeight;
+
+  // Measure the fixed-design play-core at zoom 1, then zoom it to fit.
+  core.style.zoom = '1';
+  const coreW = core.offsetWidth;    // ~504
+  const coreH = core.offsetHeight;   // varies by mode / found-sort presence
+  if (!coreW || !coreH) return;
+
+  // HANDLE reserves the bottom band under the zoomed play-core in sheet mode:
+  // the 48px collapsed handle plus ~26px breathing room so the tap-to-spell bar
+  // and rotate buttons don't sit right on top of the slide-up.
+  const LIST_MIN = FOUND_SHEET_MIN, HANDLE = 74, GAP = 8;
+  const zoomW = Math.min(vw / coreW, 1);   // never enlarge past the reference design
+  const inlineLeftover = vh - coreH * zoomW - GAP;
+  let zoom, needSheet;
+  if (inlineLeftover >= LIST_MIN) {
+    // Fits with room to spare — inline found list below the board.
+    zoom = zoomW;
+    needSheet = false;
+  } else {
+    // Not enough height for an inline list — zoom to fit and slide the list
+    // out as a bottom sheet (the one allowed exception).
+    needSheet = true;
+    zoom = Math.min(zoomW, (vh - HANDLE) / coreH);
+  }
+  zoom = Math.max(0.3, zoom);
+  core.style.zoom = String(zoom);
+  playZoom = zoom;
+
+  // The found panel (not zoomed) matches the zoomed board width when inline;
+  // in sheet mode it's a full-width slide-out.
+  panel.style.maxWidth = needSheet ? '' : Math.round(480 * zoom) + 'px';
+
   const wasSheet = panel.classList.contains('sheet');
   gs.classList.toggle('has-sheet', needSheet);
   if (needSheet) {
@@ -4289,18 +4531,129 @@ document.getElementById('foundHandle').addEventListener('click', () => {
   if (panel.classList.contains('open')) foundListEl.scrollTop = 0;
 });
 
+// Scale the menu to fit, the same way as the playfield.
+function updateHomeLayout() {
+  const hs = document.getElementById('homeScreen');
+  if (!hs || !hs.classList.contains('active')) return;
+  const inner = hs.querySelector('.home-inner');
+  if (!inner) return;
+  inner.style.zoom = '1';
+  const w = inner.offsetWidth, h = inner.offsetHeight;
+  if (!w || !h) return;
+  const zoom = Math.min(hs.clientWidth / w, hs.clientHeight / h, 1);
+  inner.style.zoom = String(Math.max(0.4, zoom));
+}
+
 let foundLayoutTimer = 0;
 window.addEventListener('resize', () => {
   clearTimeout(foundLayoutTimer);
-  foundLayoutTimer = setTimeout(updateFoundLayout, 120);
+  foundLayoutTimer = setTimeout(() => { updateFoundLayout(); updateHomeLayout(); }, 120);
 });
-window.addEventListener('orientationchange', () => setTimeout(updateFoundLayout, 250));
+window.addEventListener('orientationchange', () => setTimeout(() => { updateFoundLayout(); updateHomeLayout(); }, 250));
 
 // ══════════════════════════════════════════════════════════════
-// SUBMIT BOARD
+// DAILY AUTO-SUBMIT + LIVE RANK
 // ══════════════════════════════════════════════════════════════
-document.getElementById('submitBtn').onclick = submitBoard;
+// Today's leaderboard entries, used to compute the player's live rank and to
+// know where a newly-posted score lands. Loaded on entering a daily game.
+let dailyLbList = [];
+let dailySubmitTimer = 0;
 
+async function loadDailyLeaderboard() {
+  try {
+    const all = await lbReadAll();
+    dailyLbList = (all && Array.isArray(all[lbKey(DAILY_DATE, DIFFICULTY)]))
+      ? all[lbKey(DAILY_DATE, DIFFICULTY)] : [];
+  } catch { dailyLbList = []; }
+  updateDailyRank();
+}
+
+// Rank = where the player's current score would sit on today's board.
+function updateDailyRank() {
+  if (MODE !== 'daily') return;
+  const el = document.getElementById('rankValue');
+  if (!el) return;
+  const score = computeTotalScore();
+  if (score <= 0) { el.textContent = '—'; return; }
+  let above = 0;
+  for (const e of dailyLbList) { if ((e.s || 0) > score) above++; }
+  el.textContent = '#' + (above + 1);
+}
+
+// Called after every scored daily word: update the local best + live rank, and
+// debounce a silent post to the leaderboard (no modal — the rank chip is the
+// standing; tapping it returns to the menu for the full board).
+function onDailyWordScored() {
+  if (MODE !== 'daily') return;
+  setBest(DAILY_DATE, DIFFICULTY, computeTotalScore(), foundWords);
+  updateDailyRank();
+  clearTimeout(dailySubmitTimer);
+  dailySubmitTimer = setTimeout(postDailyScore, 1500);
+}
+
+async function postDailyScore() {
+  if (MODE !== 'daily') return;
+  const name = getStoredName();
+  const score = computeTotalScore();
+  if (!name || score <= 0) return;   // no initials yet → provisional rank only
+  try {
+    const list = await lbSubmit(DAILY_DATE, DIFFICULTY, name, score, foundWords.length);
+    if (Array.isArray(list)) dailyLbList = list;
+    dailySubmitted = true;
+    updateDailyRank();
+    saveDailyProgress();
+  } catch (err) {
+    console.warn('daily auto-submit failed', err);
+  }
+}
+
+// The rank chip opens a compact standings popup over the playfield — it does
+// not leave the game.
+function openRankModal() {
+  if (MODE !== 'daily') return;
+  document.getElementById('rankModalSub').textContent = formatDateLong(DAILY_DATE);
+  const listEl = document.getElementById('rankLbList');
+  const myName = getStoredName().toUpperCase();
+  const myScore = computeTotalScore();
+
+  const list = (dailyLbList || []).map(e => ({ n: (e.n || '').toUpperCase(), s: e.s || 0 }));
+  list.sort((a, b) => b.s - a.s);
+  // Reflect the player's *current* standing, even if it hasn't posted yet.
+  let mine = myName ? list.find(e => e.n === myName) : null;
+  if (mine) { if (myScore > mine.s) mine.s = myScore; mine.me = true; }
+  else if (myScore > 0) {
+    mine = { n: myName || 'YOU', s: myScore, me: true };
+    list.push(mine);
+  }
+  list.sort((a, b) => b.s - a.s);
+
+  listEl.innerHTML = '';
+  if (!list.length) {
+    listEl.innerHTML = '<div class="lb-empty" style="text-align:center">No scores yet — be first!</div>';
+  } else {
+    list.slice(0, 20).forEach((e, i) => {
+      const row = document.createElement('div');
+      row.className = 'lb-row' + (e.me ? ' is-you' : '');
+      row.innerHTML =
+        `<span class="lb-rank">#${i + 1}</span>` +
+        `<span class="lb-name${e.me ? ' is-you' : ''}">${e.n || '—'}</span>` +
+        `<span class="lb-score">${e.s}</span>`;
+      listEl.appendChild(row);
+    });
+  }
+  document.getElementById('rankModal').classList.add('show');
+}
+function closeRankModal() { document.getElementById('rankModal').classList.remove('show'); }
+
+document.getElementById('rankChip').onclick = openRankModal;
+document.getElementById('rankDoneBtn').onclick = closeRankModal;
+document.getElementById('rankModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('rankModal')) closeRankModal();
+});
+
+// ══════════════════════════════════════════════════════════════
+// SUBMIT BOARD (legacy modal — retained but no longer triggered)
+// ══════════════════════════════════════════════════════════════
 function submitBoard() {
   if (foundWords.length === 0) {
     showToast('Find at least one word first!');
@@ -4451,34 +4804,51 @@ function wireToggle(el, onFlip) {
 wireToggle(hapticsToggle, next => { if (next) haptic(20); });
 wireToggle(tapSelectToggle, null);
 
+const settingsInitials = document.getElementById('settingsInitials');
+
 function openSettings() {
   setToggleVisual(hapticsToggle, isHapticsOn());
   setToggleVisual(tapSelectToggle, isTapSelect());
+  if (settingsInitials) settingsInitials.value = getStoredName();
   settingsModal.classList.add('show');
 }
 function closeSettings() {
   settingsModal.classList.remove('show');
 }
 
-document.getElementById('settingsCancelBtn').onclick = closeSettings;
-document.getElementById('settingsSaveBtn').onclick = () => {
+// Single button: persist everything, apply live, and close.
+document.getElementById('settingsDoneBtn').onclick = () => {
   setHapticsOn(hapticsToggle && hapticsToggle.classList.contains('on'));
   const nextTap = !!(tapSelectToggle && tapSelectToggle.classList.contains('on'));
   setTapSelect(nextTap);
   applyTapMode(nextTap);
+  if (settingsInitials) {
+    const initials = (settingsInitials.value || '').trim().toUpperCase().slice(0, 6);
+    setStoredName(initials);
+  }
+  updateDailyRank();
   closeSettings();
-  showToast('Settings saved');
 };
+// Tapping the dim backdrop also closes (saving isn't needed — nothing changed
+// until Done, but closing is the expected gesture).
+settingsModal.addEventListener('click', e => {
+  if (e.target === settingsModal) closeSettings();
+});
+document.getElementById('gameSettingsGear').onclick = openSettings;
 
 // Switch selection mode live: clear any in-progress selection and refresh the
-// word-bar hint so the change takes effect without a reload.
+// word-bar hint so the change takes effect without a reload. Guards the board
+// ops so opening Settings from the menu (no game rendered) never throws.
 function applyTapMode(on) {
   tapMode = on;
   document.body.classList.toggle('tap-mode', on);
-  isDragging = false;
-  path = [];
-  if (typeof highlightPath === 'function') highlightPath();
-  if (typeof updateWordBar === 'function') updateWordBar();
+  const gs = document.getElementById('gameScreen');
+  if (gs && gs.classList.contains('active') && gridEl.children.length) {
+    isDragging = false;
+    path = [];
+    highlightPath();
+    updateWordBar();
+  }
 }
 // Reflect the persisted setting at startup.
 document.body.classList.toggle('tap-mode', tapMode);
