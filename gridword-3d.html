@@ -2109,6 +2109,21 @@ body.gem3d:not(.no-webgl) .cell .pts {
   color: #fff !important;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 2px rgba(0, 0, 0, 0.7);
 }
+/* Score number sits centered directly below the letter, inside the diamond
+   (not bottom-right, which would fall outside the gem silhouette). */
+body.gem3d:not(.no-webgl) .cell .pts {
+  left: 0; right: 0;
+  bottom: auto;
+  top: 61%;
+  text-align: center;
+}
+/* The gem itself does the flip in WebGL — keep the DOM letter/number static
+   (no DOM flip/bump), so the text stays put on top of the flipping jewel. */
+body.gem3d:not(.no-webgl) .cell.scored-flip,
+body.gem3d:not(.no-webgl) .cell.scored-bump {
+  animation: none !important;
+  transform: none !important;
+}
 /* No-WebGL fallback: keep the original flat tiles, hide the dead canvas. */
 body.no-webgl #gemCanvas { display: none; }
 
@@ -5398,83 +5413,94 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
 <script id="gem3d-script">
 /* ==========================================================================
    gridword-3d — jeweled tile layer
-   Renders one faceted gem (PrincessCut mesh, ported Diamond.shader) per board
-   cell on a WebGL canvas behind the DOM letters. Drives per-gem colour / glow /
-   selection from the existing game state by wrapping renderGrid / updateCellDisplay
-   / highlightPath. Falls back to the flat CSS tiles if WebGL is unavailable.
-   Depends on globals from the main script: gridEl, CELL_COUNT, cellScores, path,
-   getCellEl. And on inlined assets: GEM_POS_B64, GEM_NRM_B64, ENV_DATAURI.
+   One faceted gem (PrincessCut mesh, ported Diamond.shader) per board cell,
+   rendered on a WebGL canvas behind the static DOM letters. Unused tiles are
+   opaque chrome/metal; a scored tile flips over and, at the midpoint of the
+   flip, turns into a translucent coloured jewel. Drives per-gem state by
+   wrapping renderGrid / updateCellDisplay / highlightPath. Falls back to the
+   flat CSS tiles if WebGL is unavailable.
+   Globals used (bare): gridEl, CELL_COUNT, cellScores, path, getCellEl,
+   renderGrid, updateCellDisplay, highlightPath. Inlined assets: GEM_POS_B64,
+   GEM_NRM_B64, ENV_DATAURI.
    ========================================================================== */
 (function () {
   'use strict';
   const THREE = window.THREE;
 
   function b64ToF32(b64) {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
+    const bin = atob(b64), bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return new Float32Array(bytes.buffer);
   }
 
-  const MAX_INSTANCES = 100;           // 10×10 max board
-  const GEM_HALF = 0.338181;           // mesh XZ half-extent (from OBJ bounds)
-  const DIAG = GEM_HALF * 2 * Math.SQRT2; // point-to-point width after 45° spin
+  const MAX_INSTANCES = 100;
+  const GEM_HALF = 0.338181;
+  const DIAG = GEM_HALF * 2 * Math.SQRT2;
+  const JEWEL_ALPHA = 0.72;          // translucency of scored gems (metal = 1.0)
+  const FLIP_MS = 560;               // flip-on-score duration
+  const FRAME_MS = 1000 / 60;        // 60fps cap
 
   const SILVER = new THREE.Color(0.82, 0.84, 0.9);
-  const PALETTE = {                    // mirrors the CSS score→colour tiers
+  const PALETTE = {
     3:'#FF5C8A',4:'#FF8A3D',5:'#FFC93C',6:'#6FE36F',7:'#2DD4BF',
     8:'#38BDF8',9:'#6366F1',10:'#A855F7',11:'#EC4899'
   };
   function colorForScore(s) {
-    if (s < 3) return null;            // unscored → metal
-    if (s >= 12) return '#C77DFF';     // top tiers → bright amethyst
+    if (s < 3) return null;
+    if (s >= 12) return '#C77DFF';
     return PALETTE[s] || '#A855F7';
   }
 
   const G = {
-    ok: false, renderer: null, scene: null, camera: null, mesh: null,
-    envCube: null, canvas: null, dirty: true, running: false,
-    W: 0, H: 0, count: 0,
-    aColor: null, aEmit: null, aMetal: null, aSel: null,
-    tmpMat: new THREE.Matrix4(), tmpCol: new THREE.Color(),
-    posScale: 1, // world→gem scale, recomputed on layout
+    ok: false, built: false, renderer: null, scene: null, camera: null, mesh: null,
+    envCube: null, canvas: null, count: 0, W: 0, H: 0, scaleVal: 1, lastFrame: 0,
+    aColor: null, aEmit: null, aMetal: null, aAlpha: null, aSel: null,
+    cx: new Float32Array(MAX_INSTANCES), cy: new Float32Array(MAX_INSTANCES),
+    shown: new Int16Array(MAX_INSTANCES).fill(-1),
+    flip: {},                        // idx -> {t0, applied}
   };
+  // reusable temporaries
+  const _m = new THREE.Matrix4(), _t = new THREE.Matrix4(), _ry = new THREE.Matrix4(),
+        _rz = new THREE.Matrix4(), _s = new THREE.Matrix4(), _col = new THREE.Color();
+  _rz.makeRotationZ(Math.PI / 4);
 
-  // ---- shader (port of FX/Gem_CameraSpace) --------------------------------
+  // ---- shader (port of FX/Gem_CameraSpace, + per-instance alpha) -----------
   const VERT = `
     precision highp float;
-    attribute vec3 aColor; attribute float aEmit; attribute float aMetal; attribute float aSel;
-    varying vec3 vCol; varying float vEmit; varying float vMetal; varying float vSel;
-    varying vec3 vN; varying vec3 vWP;
+    attribute vec3 aColor; attribute float aEmit; attribute float aMetal;
+    attribute float aAlpha; attribute float aSel;
+    varying vec3 vCol; varying float vEmit; varying float vMetal;
+    varying float vAlpha; varying float vSel; varying vec3 vN; varying vec3 vWP;
     void main() {
-      vCol = aColor; vEmit = aEmit; vMetal = aMetal; vSel = aSel;
+      vCol=aColor; vEmit=aEmit; vMetal=aMetal; vAlpha=aAlpha; vSel=aSel;
       mat4 im = instanceMatrix;
       vec4 wp = modelMatrix * im * vec4(position, 1.0);
       vWP = wp.xyz;
-      mat3 nm = mat3(modelMatrix) * mat3(im);
-      vN = normalize(nm * normal);
+      vN = normalize(mat3(modelMatrix) * mat3(im) * normal);
       gl_Position = projectionMatrix * viewMatrix * wp;
     }`;
   const FRAG = `
     precision highp float;
     uniform samplerCube envMap;
     uniform float uEnvLight, uReflStrength, uFresnelPow, uEmission, uTime;
-    varying vec3 vCol; varying float vEmit; varying float vMetal; varying float vSel;
-    varying vec3 vN; varying vec3 vWP;
+    varying vec3 vCol; varying float vEmit; varying float vMetal;
+    varying float vAlpha; varying float vSel; varying vec3 vN; varying vec3 vWP;
     void main() {
       vec3 N = normalize(vN);
+      if (!gl_FrontFacing) N = -N;                 // double-sided (visible during flip)
       vec3 V = normalize(cameraPosition - vWP);
       vec3 R = reflect(-V, N);
       vec3 env = textureCube(envMap, R).rgb;
       float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), uFresnelPow);
       vec3 baseCol = mix(vCol, vec3(0.82, 0.84, 0.9), vMetal);
-      // base body (refraction-ish) + fresnel edge reflection + emissive glow
       vec3 col = env * baseCol * uEnvLight
-               + env * uReflStrength * fres
+               + env * uReflStrength * (0.5 + fres)   // brighter reflective faces
                + vCol * uEmission * vEmit;
-      col += vSel * (0.32 + 0.28 * fres);                 // selection highlight
-      col *= 1.0 + 0.05 * sin(uTime * 2.0 + vWP.x * 0.05 + vWP.y * 0.07);  // shimmer
-      gl_FragColor = vec4(col, 1.0);
+      col += vSel * (0.30 + 0.30 * fres);
+      col *= 1.0 + 0.05 * sin(uTime * 2.0 + vWP.x * 0.05 + vWP.y * 0.07);
+      // metal stays opaque; jewels are translucent with bright fresnel rims
+      float alpha = mix(clamp(vAlpha + fres * 0.4, 0.0, 1.0), 1.0, vMetal);
+      gl_FragColor = vec4(col, alpha);
     }`;
 
   function initGL() {
@@ -5500,31 +5526,27 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
     G.camera.position.set(0, 0, 200);
     G.camera.lookAt(0, 0, 0);
 
-    // gem geometry (baked so the table faces +Z)
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(b64ToF32(window.GEM_POS_B64), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(b64ToF32(window.GEM_NRM_B64), 3));
-    geo.rotateX(-Math.PI / 2);         // mesh +Y (table) → +Z (toward camera)
-    geo.computeBoundingBox();
+    geo.rotateX(-Math.PI / 2);                     // table faces the camera (+Z)
 
     G.aColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 3), 3);
     G.aEmit  = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES), 1);
     G.aMetal = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES).fill(1), 1);
+    G.aAlpha = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES).fill(1), 1);
     G.aSel   = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES), 1);
-    geo.setAttribute('aColor', G.aColor);
-    geo.setAttribute('aEmit', G.aEmit);
-    geo.setAttribute('aMetal', G.aMetal);
+    geo.setAttribute('aColor', G.aColor); geo.setAttribute('aEmit', G.aEmit);
+    geo.setAttribute('aMetal', G.aMetal); geo.setAttribute('aAlpha', G.aAlpha);
     geo.setAttribute('aSel', G.aSel);
 
     const mat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
+      transparent: true, side: THREE.DoubleSide, depthTest: true, depthWrite: true,
       uniforms: {
         envMap: { value: null },
-        uEnvLight: { value: 1.05 },
-        uReflStrength: { value: 0.85 },
-        uFresnelPow: { value: 2.4 },
-        uEmission: { value: 0.55 },
-        uTime: { value: 0 },
+        uEnvLight: { value: 1.0 }, uReflStrength: { value: 1.0 },
+        uFresnelPow: { value: 3.0 }, uEmission: { value: 0.5 }, uTime: { value: 0 },
       },
     });
     G.mesh = new THREE.InstancedMesh(geo, mat, MAX_INSTANCES);
@@ -5532,7 +5554,6 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
     G.mesh.count = 0;
     G.scene.add(G.mesh);
 
-    // environment cubemap from the inlined equirect JPG
     new THREE.TextureLoader().load(window.ENV_DATAURI, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.mapping = THREE.EquirectangularReflectionMapping;
@@ -5549,40 +5570,44 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
     return true;
   }
 
-  // Coalesced on-demand render (works without rAF, e.g. background tabs / headless).
+  // ---- on-demand render (coalesced; works without rAF) --------------------
   let renderScheduled = false;
   function renderOnce() {
     if (!G.ok || !G.envCube) return;
     G.renderer.render(G.scene, G.camera);
-    G.dirty = false;
   }
   function scheduleRender() {
-    G.dirty = true;
     if (renderScheduled) return;
     renderScheduled = true;
     setTimeout(() => { renderScheduled = false; syncRotation(); renderOnce(); }, 0);
   }
 
-  // Size the canvas buffer + camera to the current grid layout box.
   function resize() {
-    if (!G.ok) return;
+    if (!G.ok) return false;
     const w = gridEl.clientWidth, h = gridEl.clientHeight;
-    if (!w || !h) return;
+    if (!w || !h) return false;
     if (w !== G.W || h !== G.H) {
       G.W = w; G.H = h;
-      G.renderer.setSize(w, h, false);           // buffer only; CSS size set explicitly below
-      G.canvas.style.width = w + 'px';           // match the grid content box exactly
-      G.canvas.style.height = h + 'px';          // (canvas is a replaced element — can't rely on auto)
-      G.camera.left = 0; G.camera.right = w;
-      G.camera.top = 0; G.camera.bottom = -h;
+      G.renderer.setSize(w, h, false);
+      G.canvas.style.width = w + 'px';
+      G.canvas.style.height = h + 'px';
+      G.camera.left = 0; G.camera.right = w; G.camera.top = 0; G.camera.bottom = -h;
       G.camera.updateProjectionMatrix();
-      G.dirty = true;
       return true;
     }
     return false;
   }
 
-  // Place a gem at every cell centre, scaled to the cell pitch.
+  // Compose a gem's instance matrix: T * Ry(flip) * Rz(45°) * S(scale·bump).
+  function setInstMatrix(idx, flipAngle, bump) {
+    const s = G.scaleVal * (bump || 1);
+    _s.makeScale(s, s, s);
+    _ry.makeRotationY(flipAngle || 0);
+    _t.makeTranslation(G.cx[idx], -G.cy[idx], 0);
+    _m.copy(_t).multiply(_ry).multiply(_rz).multiply(_s);
+    G.mesh.setMatrixAt(idx, _m);
+  }
+
   function buildInstances() {
     if (!G.ok) return;
     resize();
@@ -5590,51 +5615,58 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
     if (!n || !gridEl.children.length) return;
     const c0 = gridEl.children[0];
     const cellW = c0.offsetWidth || (G.W / Math.sqrt(n));
-    // pitch = spacing between cell centres (cell + gap); fall back to cellW*1.06
     let pitch = cellW * 1.06;
     if (gridEl.children.length > 1) {
       const c1 = gridEl.children[1];
       if (c1.offsetTop === c0.offsetTop) pitch = c1.offsetLeft - c0.offsetLeft;
     }
-    const scale = (pitch / DIAG) * 0.99;          // diamonds nearly touch
-    const Rz = Math.PI / 4;
+    G.scaleVal = (pitch / DIAG) * 0.99;
+    G.flip = {};
     for (let i = 0; i < n; i++) {
       const cell = gridEl.children[i];
-      const cx = cell.offsetLeft + cell.offsetWidth / 2;
-      const cy = cell.offsetTop + cell.offsetHeight / 2;
-      G.tmpMat.makeRotationZ(Rz);
-      G.tmpMat.scale(new THREE.Vector3(scale, scale, scale));
-      G.tmpMat.setPosition(cx, -cy, 0);
-      G.mesh.setMatrixAt(i, G.tmpMat);
+      G.cx[i] = cell.offsetLeft + cell.offsetWidth / 2;
+      G.cy[i] = cell.offsetTop + cell.offsetHeight / 2;
+      setInstMatrix(i, 0, 1);
     }
     G.mesh.count = n;
     G.mesh.instanceMatrix.needsUpdate = true;
     G.count = n;
     for (let i = 0; i < n; i++) syncCell(i);
+    G.built = true;
     scheduleRender();
   }
 
-  // Pull one cell's colour/glow/metal from game state into its gem instance.
+  // Apply a cell's current visuals (colour / metal / glow / alpha) to its gem.
   function syncCell(idx) {
     if (!G.ok || idx >= G.count) return;
     const s = (typeof cellScores !== 'undefined' && cellScores[idx]) || 0;
     const hex = colorForScore(s);
     if (hex) {
-      G.tmpCol.set(hex);
-      G.aColor.setXYZ(idx, G.tmpCol.r, G.tmpCol.g, G.tmpCol.b);
+      _col.set(hex);
+      G.aColor.setXYZ(idx, _col.r, _col.g, _col.b);
       G.aMetal.setX(idx, 0);
+      G.aAlpha.setX(idx, JEWEL_ALPHA);
       const t = Math.max(0, Math.min(1, (s - 3) / 12));
-      G.aEmit.setX(idx, 0.55 + t * 1.6);          // glow grows with tier
+      G.aEmit.setX(idx, 0.55 + t * 1.6);
     } else {
       G.aColor.setXYZ(idx, SILVER.r, SILVER.g, SILVER.b);
       G.aMetal.setX(idx, 1);
+      G.aAlpha.setX(idx, 1);
       G.aEmit.setX(idx, 0);
     }
-    G.aColor.needsUpdate = true;
-    G.aMetal.needsUpdate = true;
-    G.aEmit.needsUpdate = true;
-    scheduleRender();
+    G.shown[idx] = s;
+    G.aColor.needsUpdate = G.aMetal.needsUpdate = G.aAlpha.needsUpdate = G.aEmit.needsUpdate = true;
   }
+
+  // Start a flip; the colour swaps at the midpoint (handled in loop + fallbacks).
+  function startFlip(idx) {
+    const f = { t0: perfNow(), applied: false };
+    G.flip[idx] = f;
+    // fallbacks so the colour still swaps/finalises even where rAF is throttled
+    setTimeout(() => { if (G.flip[idx] === f && !f.applied) { f.applied = true; syncCell(idx); scheduleRender(); } }, FLIP_MS * 0.5);
+    setTimeout(() => { if (G.flip[idx] === f) { syncCell(idx); delete G.flip[idx]; setInstMatrix(idx, 0, 1); G.mesh.instanceMatrix.needsUpdate = true; scheduleRender(); } }, FLIP_MS + 30);
+  }
+  function perfNow() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
 
   function syncSelection() {
     if (!G.ok) return;
@@ -5645,84 +5677,75 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
     scheduleRender();
   }
 
-  // Mirror the board's CSS rotation onto the canvas so gems turn with letters.
   function syncRotation() {
     if (!G.canvas) return;
     const t = getComputedStyle(gridEl).transform;
     G.canvas.style.transform = (t && t !== 'none') ? t : '';
   }
 
-  // Optional shimmer loop — only meaningful where rAF runs (real devices). All
-  // correctness (layout, colour, rotation) is handled by observers below, so if
-  // rAF is throttled/frozen the gems still render; they just don't shimmer.
+  // ---- render loop: 60fps cap, advances flips, subtle shimmer -------------
   function loop(now) {
-    if (!G.ok) { return; }
-    const gs = document.getElementById('gameScreen');
-    if (gs && gs.classList.contains('active') && G.envCube) {
-      G.mesh.material.uniforms.uTime.value = now * 0.001;
-      syncRotation();
-      G.renderer.render(G.scene, G.camera);
-    }
+    if (!G.ok) return;
     requestAnimationFrame(loop);
+    if (now - G.lastFrame < FRAME_MS - 0.5) return;   // cap at 60fps
+    G.lastFrame = now;
+    const gs = document.getElementById('gameScreen');
+    if (!(gs && gs.classList.contains('active') && G.envCube)) return;
+
+    // advance any active flips
+    let matDirty = false;
+    for (const k in G.flip) {
+      const idx = +k, f = G.flip[idx];
+      const t = (now - f.t0) / FLIP_MS;
+      if (t >= 1) { syncCell(idx); setInstMatrix(idx, 0, 1); delete G.flip[idx]; matDirty = true; continue; }
+      if (t >= 0.5 && !f.applied) { f.applied = true; syncCell(idx); }
+      setInstMatrix(idx, t * Math.PI * 2, 1 + 0.12 * Math.sin(t * Math.PI));
+      matDirty = true;
+    }
+    if (matDirty) G.mesh.instanceMatrix.needsUpdate = true;
+
+    G.mesh.material.uniforms.uTime.value = now * 0.001;
+    syncRotation();
+    G.renderer.render(G.scene, G.camera);
   }
 
-  // ---- hook the existing game functions (bare globals, function decls) -----
+  // ---- hooks --------------------------------------------------------------
   function installHooks() {
     if (typeof renderGrid === 'function') {
-      const _renderGrid = renderGrid;
-      renderGrid = function () {
-        const r = _renderGrid.apply(this, arguments);
-        setTimeout(buildInstances, 0);   // let layout settle, then place gems
-        return r;
-      };
+      const _rg = renderGrid;
+      renderGrid = function () { const r = _rg.apply(this, arguments); setTimeout(buildInstances, 0); return r; };
     }
     if (typeof updateCellDisplay === 'function') {
-      const _updateCellDisplay = updateCellDisplay;
+      const _ucd = updateCellDisplay;
       updateCellDisplay = function (idx) {
-        const r = _updateCellDisplay.apply(this, arguments);
-        syncCell(idx);
+        const r = _ucd.apply(this, arguments);
+        if (G.ok && G.built && idx < G.count) {
+          const ns = (typeof cellScores !== 'undefined' && cellScores[idx]) || 0;
+          if (ns > 0 && ns !== G.shown[idx]) startFlip(idx);   // score changed → flip
+          else if (ns !== G.shown[idx]) syncCell(idx);
+        }
         return r;
       };
     }
     if (typeof highlightPath === 'function') {
-      const _highlightPath = highlightPath;
-      highlightPath = function () {
-        const r = _highlightPath.apply(this, arguments);
-        syncSelection();
-        return r;
-      };
+      const _hp = highlightPath;
+      highlightPath = function () { const r = _hp.apply(this, arguments); syncSelection(); return r; };
     }
   }
 
   function start() {
     document.body.classList.add('gem3d');
-    if (!window.THREE || !initGL()) {
-      document.body.classList.add('no-webgl');   // stylesheet restores flat tiles
-      return;
-    }
+    if (!window.THREE || !initGL()) { document.body.classList.add('no-webgl'); return; }
     installHooks();
     buildInstances();
-
-    // Event-driven correctness (fires without rAF): relayout on size/zoom change,
-    // resync rotation when the board's --board-rot changes.
-    if (window.ResizeObserver) {
-      const ro = new ResizeObserver(() => { if (resize()) buildInstances(); else scheduleRender(); });
-      ro.observe(gridEl);
-    }
-    if (window.MutationObserver) {
-      const mo = new MutationObserver(() => { syncRotation(); scheduleRender(); });
-      mo.observe(gridEl, { attributes: true, attributeFilter: ['style'] });
-    }
+    if (window.ResizeObserver) new ResizeObserver(() => { if (resize()) buildInstances(); else scheduleRender(); }).observe(gridEl);
+    if (window.MutationObserver) new MutationObserver(() => { syncRotation(); scheduleRender(); }).observe(gridEl, { attributes: true, attributeFilter: ['style'] });
     window.addEventListener('resize', () => { if (resize()) buildInstances(); else scheduleRender(); });
-
-    requestAnimationFrame(loop);   // shimmer where rAF is available
+    requestAnimationFrame(loop);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-  } else {
-    start();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();
 
 </script>
