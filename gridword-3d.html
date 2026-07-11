@@ -5485,6 +5485,7 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
     uniform float uEnvLight, uReflStrength, uFresnelPow, uEmission, uTime;
     varying vec3 vCol; varying float vEmit; varying float vMetal;
     varying float vAlpha; varying float vSel; varying vec3 vN; varying vec3 vWP;
+    float hash21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
     void main() {
       vec3 N = normalize(vN);
       if (!gl_FrontFacing) N = -N;                 // double-sided (visible during flip)
@@ -5497,7 +5498,17 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
                + env * uReflStrength * (0.5 + fres)   // brighter reflective faces
                + vCol * uEmission * vEmit;
       col += vSel * (0.30 + 0.30 * fres);
-      col *= 1.0 + 0.05 * sin(uTime * 2.0 + vWP.x * 0.05 + vWP.y * 0.07);
+      // Time-animated glitter on jewels (ported GlitterSubGraph: screen-space
+      // noise scrolled by time, concentrated toward facet edges = diamond fire).
+      if (vMetal < 0.5) {
+        vec2 g = gl_FragCoord.xy * 0.3 + vec2(uTime * 0.8, uTime * 0.5);
+        float n = hash21(floor(g));
+        float twinkle = 0.5 + 0.5 * sin(uTime * 6.0 + n * 62.83);
+        float spark = smoothstep(0.92, 1.0, n) * twinkle * (0.35 + fres);
+        col += spark * (1.3 + 0.5 * vCol);
+      } else {
+        col *= 1.0 + 0.04 * sin(uTime * 2.0 + vWP.x * 0.05 + vWP.y * 0.07);  // subtle metal shimmer
+      }
       // metal stays opaque; jewels are translucent with bright fresnel rims
       float alpha = mix(clamp(vAlpha + fres * 0.4, 0.0, 1.0), 1.0, vMetal);
       gl_FragColor = vec4(col, alpha);
@@ -5529,7 +5540,7 @@ window.ENV_DATAURI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDA
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(b64ToF32(window.GEM_POS_B64), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(b64ToF32(window.GEM_NRM_B64), 3));
-    geo.rotateX(-Math.PI / 2);                     // table faces the camera (+Z)
+    geo.rotateX(Math.PI / 2);                       // flat table (+Y) → faces the camera (+Z)
 
     G.aColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 3), 3);
     G.aEmit  = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES), 1);
