@@ -89,8 +89,8 @@
   .pace{position:absolute;top:calc(78px + var(--safe-t));left:50%;transform:translateX(-50%);text-align:center}
   .pace .call{font-size:clamp(22px,6vw,40px);font-weight:900;color:var(--accent);text-shadow:0 2px 0 #000}
   .pace .nxt{font-size:13px;color:var(--dim)}
-  #speedo{position:absolute;right:calc(14px + var(--safe-r));bottom:calc(18px + var(--safe-b));text-align:right}
-  #speedo .kmh{font-size:clamp(40px,11vw,64px);font-weight:900;line-height:.9;color:#fff;text-shadow:0 3px 0 #000;font-variant-numeric:tabular-nums}
+  #speedo{position:absolute;right:calc(14px + var(--safe-r));bottom:calc(198px + var(--safe-b));text-align:right;pointer-events:none}
+  #speedo .kmh{font-size:clamp(34px,9vw,64px);font-weight:900;line-height:.9;color:#fff;text-shadow:0 3px 0 #000;font-variant-numeric:tabular-nums}
   #speedo .u{font-size:13px;color:var(--dim);letter-spacing:2px}
   #speedo .gear{font-size:20px;color:var(--accent);font-weight:800}
   #countdown{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(60px,22vw,160px);
@@ -111,9 +111,20 @@
   .tbtn.act{background:rgba(255,196,0,.35);border-color:var(--accent)}
   .tbtn.gas{background:rgba(56,214,106,.22);border-color:var(--good)}
   .tbtn.brk{background:rgba(255,90,44,.20);border-color:var(--accent2)}
-  .hbtn{position:absolute;bottom:calc(112px + var(--safe-b));right:calc(18px + var(--safe-r))}
+  .hbtn{position:absolute;bottom:calc(57px + var(--safe-b));right:calc(128px + var(--safe-r));width:56px;height:56px;font-size:14px}
   .pillrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}
   .pill{border:1px solid var(--line);border-radius:99px;padding:4px 10px;font-size:12px;color:var(--dim)}
+
+  /* Phone landscape: shrink touch controls and keep speedo out of the way of the pedal stack */
+  @media (max-height:500px) and (orientation:landscape){
+    #speedo{bottom:calc(150px + var(--safe-b))}
+    #speedo .kmh{font-size:clamp(26px,7vw,40px)}
+    .tbtn{width:60px;height:60px;font-size:20px}
+    .tbtn.wide{width:80px;height:52px;font-size:13px}
+    .hbtn{width:48px;height:48px;font-size:12px;bottom:calc(46px + var(--safe-b));right:calc(108px + var(--safe-r))}
+    .pedals{bottom:calc(18px + var(--safe-b));gap:8px}
+    .steer{bottom:calc(18px + var(--safe-b))}
+  }
 </style>
 </head>
 <body>
@@ -369,9 +380,9 @@ function pushQuad(m,a,b,c,d,col){pushTri(m,a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[
 function addBox(m,cx,cy,cz,sx,sy,sz,col){
   const x0=cx-sx/2,x1=cx+sx/2,y0=cy-sy/2,y1=cy+sy/2,z0=cz-sz/2,z1=cz+sz/2;
   const P=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
-  pushQuad(m,P[5],P[4],P[7],P[6],col);pushQuad(m,P[0],P[1],P[2],P[3],col);
-  pushQuad(m,P[1],P[5],P[6],P[2],col);pushQuad(m,P[4],P[0],P[3],P[7],col);
-  pushQuad(m,P[3],P[2],P[6],P[7],col);pushQuad(m,P[4],P[5],P[1],P[0],col);}
+  pushQuad(m,P[5],P[6],P[7],P[4],col);pushQuad(m,P[0],P[3],P[2],P[1],col);
+  pushQuad(m,P[1],P[2],P[6],P[5],col);pushQuad(m,P[4],P[7],P[3],P[0],col);
+  pushQuad(m,P[3],P[7],P[6],P[2],col);pushQuad(m,P[4],P[0],P[1],P[5],col);}
 function finalizeMesh(m){
   const nV=m.p.length/3;const inter=new Float32Array(nV*9);
   for(let v=0;v<nV;v++){inter[v*9]=m.p[v*3];inter[v*9+1]=m.p[v*3+1];inter[v*9+2]=m.p[v*3+2];
