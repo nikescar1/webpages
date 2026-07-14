@@ -615,7 +615,7 @@ function stepPhysics(tr,dt){
   }
   vFwd=clamp(vFwd,reverseMaxSpeed,maxSpeed);
   const speedFactor=clamp(speedAbs/12,0,1);
-  let turnRate=steer*(2.5*setup.steer)*speedFactor;if(hand)turnRate*=1.5;
+  let turnRate=-steer*(2.5*setup.steer)*speedFactor;if(hand)turnRate*=1.5;
   Car.heading+=turnRate*dt*(vFwd>=0?1:-1);
   let grip=(onRoad?7.5:4.5)*setup.grip;if(hand)grip*=0.25;
   const gripFactor=Math.exp(-grip*dt);const slipBefore=Math.abs(vRight);
@@ -634,7 +634,7 @@ function stepPhysics(tr,dt){
     const gh=groundHeight(tr,wx,wz,Car.nodeIdx).y;hs[k]=gh;avg+=gh;}
   avg/=4;Car.y=lerp(Car.y,avg,clamp(dt*10,0,1));
   const front=(hs[0]+hs[1])/2,rear=(hs[2]+hs[3])/2,left=(hs[0]+hs[2])/2,right=(hs[1]+hs[3])/2;
-  Car.pitch=lerp(Car.pitch,Math.atan2(front-rear,2.5),clamp(dt*6,0,1));
+  Car.pitch=lerp(Car.pitch,Math.atan2(rear-front,2.5),clamp(dt*6,0,1));
   Car.roll=lerp(Car.roll,Math.atan2(right-left,1.72)+(-vRight*0.02),clamp(dt*6,0,1));
   const drift=Math.atan2(vRight,Math.abs(vFwd)+0.5);Car.yaw=Car.heading+clamp(drift,-0.6,0.6);
   Car.rpm=clamp((speedAbs/maxSpeed)*0.7+throttle*0.3,0,1);Car.gear=Math.min(6,1+Math.floor(speedAbs/9));
