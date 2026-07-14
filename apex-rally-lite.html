@@ -37,9 +37,7 @@
   #btnThrottle{right:16px;bottom:110px;background:rgba(50,150,80,.55);}
   #btnBrake{right:106px;bottom:16px;background:rgba(160,50,50,.55);}
   #btnHand{left:16px;top:50%;transform:translateY(-50%);background:rgba(160,120,30,.55);}
-  #pauseBtn{position:absolute;top:8px;right:8px;pointer-events:auto;width:40px;height:40px;border-radius:6px;background:rgba(0,0,0,.5);border:1px solid #666;color:#fff;font-size:18px;z-index:20;}
-  #steerL,#steerR{z-index:5;}
-  .pedal{z-index:10;}
+  #pauseBtn{position:absolute;top:8px;right:8px;pointer-events:auto;width:40px;height:40px;border-radius:6px;background:rgba(0,0,0,.5);border:1px solid #666;color:#fff;font-size:18px;}
   .fade{opacity:0;animation:fadein .4s forwards;}
   @keyframes fadein{to{opacity:1;}}
   .center-msg{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:clamp(22px,6vw,46px);color:#ffcc33;text-shadow:0 0 12px #000;text-align:center;}
@@ -117,7 +115,8 @@
     <div class="panel">
       <h2 style="margin-top:0;color:#ffcc33;">Credits</h2>
       <p>Apex Rally Lite is an original, completely self-contained game. All code, the WebGL renderer, vehicle physics, procedural audio synthesis and track generation were written from scratch for this build. No external engines, libraries, textures, fonts or audio samples are used — everything is generated at runtime in plain JavaScript and WebGL.</p>
-      <p style="color:#8fa3b8;font-size:13px;">Built as a single HTML file. Thanks for playing!</p>
+      <p>Vehicle physics (raycast-style suspension feel, tire slip/grip, arcade collision response) is conceptually <b>inspired by</b> the rigid-body/collision approach of <a href="https://github.com/isaac-mason/crashcat" target="_blank" rel="noopener" style="color:#ffcc33;">isaac-mason/crashcat</a> (MIT License). This is a hand-written, original arcade physics implementation tuned for feel — not a port of that code.</p>
+      <p style="color:#8fa3b8;font-size:13px;">Built as a single self-contained HTML file. Thanks for playing!</p>
       <div class="row"><button class="small-btn" id="creditsBack">Back</button></div>
     </div>
   </div>
@@ -205,6 +204,10 @@ function loadSave(){
     var obj = JSON.parse(raw);
     if(!obj || obj.version !== SAVE_VERSION) return freshSave();
     if(!obj.settings || !obj.bestTimes || !obj.career) return freshSave();
+    if(!obj.unlockedCars) obj.unlockedCars=["hatch"];
+    if(!obj.selectedCar) obj.selectedCar="hatch";
+    if(!obj.career.standings) obj.career.standings={};
+    if(!obj.career.completedRallies) obj.career.completedRallies=[];
     return obj;
   }catch(e){
     return freshSave();
@@ -216,7 +219,7 @@ function writeSave(){
 Save = loadSave();
 
 /* =========================================================================
-   AUDIO (procedural, ZzFX-style tiny synth)
+   AUDIO (procedural Web Audio synth)
    ========================================================================= */
 var AudioSys = (function(){
   var ctx = null, master = null, unlocked=false;
@@ -299,7 +302,7 @@ var AudioSys = (function(){
 })();
 
 /* =========================================================================
-   WEBGL RENDERER (compact, custom)
+   WEBGL RENDERER (compact, hand-written)
    ========================================================================= */
 var canvas = document.getElementById("glcanvas");
 var gl = canvas.getContext("webgl", {antialias:true}) || canvas.getContext("experimental-webgl");
@@ -389,7 +392,6 @@ function buildBox(w,h,d,color){
   var x=w/2,y=h/2,z=d/2;
   var c=color;
   var faces = [
-    // pos: 4 verts, normal
     [[-x,-y,z],[x,-y,z],[x,y,z],[-x,y,z], [0,0,1]],
     [[x,-y,-z],[-x,-y,-z],[-x,y,-z],[x,y,-z], [0,0,-1]],
     [[-x,-y,-z],[-x,-y,z],[-x,y,z],[-x,y,-z], [-1,0,0]],
@@ -455,7 +457,6 @@ function drawGLMesh(glmesh, mvp, model){
 /* =========================================================================
    TRACK GENERATION
    ========================================================================= */
-// Deterministic PRNG
 function makeRng(seed){
   var s = seed>>>0 || 1;
   return function(){
@@ -467,7 +468,7 @@ function makeRng(seed){
 var TRACK_WIDTH = 10;
 function genTrack(seed, numSegs, seg_len){
   var rng = makeRng(seed);
-  var pts = []; // centerline points {x,z,heading}
+  var pts = [];
   var x=0,z=0,heading=0;
   pts.push({x:x,z:z,heading:heading, corner:0});
   var segsSinceTurn = 6;
@@ -479,11 +480,9 @@ function genTrack(seed, numSegs, seg_len){
       var mag = 0.35 + rng()*0.9;
       turn = (rng()<0.5?-1:1) * mag;
       segsSinceTurn = 0;
-      // pace note severity: 1 (hairpin) sharp - 6 (flat) gentle
       var sev = Math.max(1, Math.min(6, Math.round(7 - mag*6)));
       paceNotes.push({ segIndex:i, dir: turn<0?"L":"R", severity:sev });
     } else segsSinceTurn++;
-    // smooth turning across a few segments
     heading += turn*0.16;
     x += Math.sin(heading)*seg_len;
     z -= Math.cos(heading)*seg_len;
@@ -501,7 +500,6 @@ function trackLength(track){
   return L;
 }
 
-// Build renderable meshes for the track (road ribbon + scenery) as GL meshes.
 function buildTrackMeshes(track, rngSeed){
   var rng = makeRng(rngSeed+777);
   var roadMeshes = [];
@@ -511,7 +509,7 @@ function buildTrackMeshes(track, rngSeed){
     var a=track.pts[i-1], b=track.pts[i];
     var dx=b.x-a.x, dz=b.z-a.z;
     var len=Math.hypot(dx,dz)||0.001;
-    var nx=-dz/len, nz=dx/len; // normal
+    var nx=-dz/len, nz=dx/len;
     var ax0=a.x+nx*w/2, az0=a.z+nz*w/2;
     var ax1=a.x-nx*w/2, az1=a.z-nz*w/2;
     var bx0=b.x+nx*w/2, bz0=b.z+nz*w/2;
@@ -523,7 +521,6 @@ function buildTrackMeshes(track, rngSeed){
       nrm:[0,1,0,0,1,0,0,1,0,0,1,0],
       idx:[0,1,2,0,2,3]
     });
-    // edge markers (rumble strips) every other segment
     if(i%4===0){
       var mk = [0.9,0.2,0.2];
       var ex0=a.x+nx*(w/2+0.3), ez0=a.z+nz*(w/2+0.3);
@@ -534,7 +531,6 @@ function buildTrackMeshes(track, rngSeed){
         nrm:[0,1,0,0,1,0,0,1,0,0,1,0], idx:[0,1,2,0,2,3]
       });
     }
-    // scenery: trees/rocks off to the sides, sparse
     if(rng()<0.35){
       var side = rng()<0.5?1:-1;
       var dist = w/2+3+rng()*10;
@@ -574,9 +570,11 @@ var RALLIES = [
 var Screens = document.querySelectorAll(".screen");
 function showScreen(id){
   for(var i=0;i<Screens.length;i++) Screens[i].classList.remove("active");
-  var el = document.getElementById("screen-"+id);
-  if(el) el.classList.add("active");
-  document.getElementById("hud").classList.remove("active");
+  if(id!=="__none__"){
+    var el = document.getElementById("screen-"+id);
+    if(el) el.classList.add("active");
+    document.getElementById("hud").classList.remove("active");
+  }
 }
 function go(id){ AudioSys.click(); showScreen(id); renderMenusIfNeeded(id); }
 
@@ -699,7 +697,6 @@ document.getElementById("resetSave").addEventListener("click", function(){
 /* =========================================================================
    PHYSICS + GAMEPLAY
    ========================================================================= */
-var Input = { steer:0, throttle:0, brake:0, handbrake:false };
 var keys = {};
 window.addEventListener("keydown", function(e){
   keys[e.code]=true;
@@ -719,9 +716,9 @@ function pollKeyboard(){
 }
 
 /* Touch controls */
-var touchState = { steerTouches:{}, throttle:false, brake:false, handbrake:false, steerVal:0 };
+var touchState = { throttle:false, brake:false, handbrake:false };
 function bindTouchZone(el, onMove, onEnd){
-  el.addEventListener("pointerdown", function(e){ el.setPointerCapture(e.pointerId); onMove(e); }, {passive:true});
+  el.addEventListener("pointerdown", function(e){ try{ el.setPointerCapture(e.pointerId); }catch(err){} onMove(e); AudioSys.unlock(); }, {passive:true});
   el.addEventListener("pointermove", function(e){ if(e.buttons||e.pressure>0) onMove(e); }, {passive:true});
   el.addEventListener("pointerup", onEnd, {passive:true});
   el.addEventListener("pointercancel", onEnd, {passive:true});
@@ -732,7 +729,7 @@ bindTouchZone(steerLEl, function(){ steerLeftActive=true; }, function(){ steerLe
 bindTouchZone(steerREl, function(){ steerRightActive=true; }, function(){ steerRightActive=false; });
 function bindPedal(id, onDown, onUp){
   var el=document.getElementById(id);
-  el.addEventListener("pointerdown", function(e){ el.setPointerCapture(e.pointerId); onDown(); AudioSys.unlock(); }, {passive:true});
+  el.addEventListener("pointerdown", function(e){ try{ el.setPointerCapture(e.pointerId); }catch(err){} onDown(); AudioSys.unlock(); }, {passive:true});
   el.addEventListener("pointerup", onUp, {passive:true});
   el.addEventListener("pointercancel", onUp, {passive:true});
   el.addEventListener("pointerleave", onUp, {passive:true});
@@ -748,14 +745,14 @@ var Car = null;
 function newCarState(specKey){
   var spec = CAR_SPECS[specKey];
   return {
-    spec:spec, x:0,z:0,y:0, heading:0,
+    spec:spec, specKey:specKey, x:0,z:0,y:0, heading:0,
     vx:0, vz:0, speed:0, steerAngle:0,
     damage:0, wheelSpin:0, rpm:800,
     offRoadTimer:0
   };
 }
 
-var Stage = null; // current stage runtime state
+var Stage = null;
 var raceState = "idle"; // idle, countdown, running, finished, paused
 var physAccumulator = 0;
 var PHYS_DT = 1/60;
@@ -769,7 +766,6 @@ function buildStage(rallyIdx, stageIdx, isQuick){
   var seed = rally.seedBase + stageIdx*97;
   var track = genTrack(seed, stageDef.len, stageDef.segLen);
   var meshData = buildTrackMeshes(track, seed);
-  // build GL meshes
   var roadMerged = mergeMeshes(meshData.roadMeshes);
   var roadGL = makeGLMesh(roadMerged);
   var treeBase = buildBox(1.2,3,1.2,[0.15,0.5,0.2]);
@@ -795,7 +791,6 @@ function buildStage(rallyIdx, stageIdx, isQuick){
 }
 
 function closestTrackInfo(track, x, z){
-  // find nearest segment index by scanning (small counts, fine)
   var best=1e12, bestI=0, bestT=0;
   for(var i=1;i<track.pts.length;i++){
     var a=track.pts[i-1], b=track.pts[i];
@@ -840,40 +835,33 @@ function stepPhysics(dt){
   var speedAlong = Car.vx*forward.x + Car.vz*forward.z;
   Car.speed = Math.hypot(Car.vx, Car.vz);
 
-  // accel/brake
   var accelForce = 0;
   if(throttle>0) accelForce = spec.accel * throttle;
   if(brake>0) accelForce -= spec.brake * brake * (speedAlong>0.2?1:0.3);
   if(handbrake) accelForce -= spec.brake*0.5;
 
-  // steering affects heading based on speed
   var steerRate = steer * (0.9 + Math.min(1,Car.speed/25)*1.6) * (handbrake?1.6:1.0);
   Car.heading += steerRate * dt * (speedAlong>=0?1:-1);
 
-  // apply forward accel
   var newForward = { x: Math.sin(Car.heading), z: -Math.cos(Car.heading) };
   speedAlong += accelForce*dt;
-  // drag
   speedAlong *= (1 - 0.02*dt*60*0.02);
   speedAlong = Math.max(-spec.maxSpeed*0.4, Math.min(spec.maxSpeed, speedAlong));
 
-  // lateral grip: blend velocity direction toward forward direction (slip when handbrake or high steer)
   var gripFactor = handbrake ? 0.15 : Math.min(1, spec.grip*dt);
   Car.vx = Car.vx + (newForward.x*speedAlong - Car.vx) * gripFactor;
   Car.vz = Car.vz + (newForward.z*speedAlong - Car.vz) * gripFactor;
 
-  var squealing = handbrake || Math.abs(steer)>0.6 && Car.speed>15;
+  var squealing = handbrake || (Math.abs(steer)>0.6 && Car.speed>15);
   if(squealing) AudioSys.squeal(performance.now()/1000);
 
   Car.x += Car.vx*dt;
   Car.z += Car.vz*dt;
 
-  // track boundary collision
   var info = closestTrackInfo(Stage.track, Car.x, Car.z);
   var halfW = Stage.track.width/2;
   var distFromCenter = Math.sqrt(info.dist2);
   if(distFromCenter > halfW + 1.0){
-    // off track: heavy penalty & slow down, small damage
     Car.offRoadTimer += dt;
     Car.vx *= 0.9; Car.vz *= 0.9;
     if(Car.offRoadTimer>0.15){
@@ -884,7 +872,6 @@ function stepPhysics(dt){
     Car.vx *= 0.985; Car.vz *= 0.985;
   }
   if(distFromCenter > halfW + 6){
-    // hit a hard edge/rock — bounce + crash sound + damage
     Car.vx *= -0.3; Car.vz *= -0.3;
     Car.damage = Math.min(100, Car.damage + 6);
     AudioSys.crash();
@@ -893,11 +880,9 @@ function stepPhysics(dt){
   Car.rpm = 800 + Math.min(1, Math.abs(speedAlong)/spec.maxSpeed) * 6200 + Math.abs(steer)*200;
   AudioSys.updateEngine(Car.rpm, throttle);
 
-  // progress along track
   var dist = segDistanceAlong(Stage.track, info.segIndex, info.t);
   if(dist > Stage.progressDist) Stage.progressDist = dist;
 
-  // pace note advance
   updatePaceNoteHud(info.segIndex);
 
   elapsedStageTime += dt;
@@ -907,13 +892,12 @@ function stepPhysics(dt){
   }
   if(Car.damage>=100){
     penaltySeconds += 5;
-    Car.damage = 60; // recover partially, continue with penalty
+    Car.damage = 60;
   }
 }
 
 function updatePaceNoteHud(segIndex){
   var notes = Stage.track.paceNotes;
-  // find next upcoming note ahead of current seg
   var next=null;
   for(var i=0;i<notes.length;i++){
     if(notes[i].segIndex >= segIndex-1){ next=notes[i]; break; }
@@ -939,7 +923,6 @@ function finishStage(){
   var isNewBest = !best || finalTime < best;
   if(isNewBest) Save.bestTimes[key] = finalTime;
 
-  // championship points (simple): faster time band -> points
   if(!Stage.isQuick){
     var pts = finalTime < 60 ? 25 : finalTime < 90 ? 18 : finalTime<130 ? 12 : 6;
     var stKey = "player";
@@ -956,7 +939,6 @@ function finishStage(){
   document.getElementById("resultsNext").onclick = function(){
     AudioSys.click();
     if(Stage.isQuick){ go("quick"); return; }
-    // advance career
     var rally = RALLIES[Stage.rallyIdx];
     var nextStage = Stage.stageIdx+1;
     if(nextStage < rally.stages.length){
@@ -1010,7 +992,7 @@ function startQuickStage(rallyIdx, stageIdx){
 }
 
 function beginCountdown(){
-  showScreen("__none__"); // hide all
+  showScreen("__none__");
   document.getElementById("hud").classList.add("active");
   document.getElementById("hudStageName").textContent = Stage.rallyName+" - "+Stage.name;
   var cd = document.getElementById("countdown");
@@ -1044,17 +1026,6 @@ document.getElementById("pauseBtn").addEventListener("click", togglePause);
 document.getElementById("pauseResume").addEventListener("click", togglePause);
 document.getElementById("pauseRestart").addEventListener("click", restartStage);
 document.getElementById("pauseQuit").addEventListener("click", function(){ AudioSys.click(); raceState="idle"; go("main"); });
-
-/* Special: showScreen("__none__") hides all screens but keeps HUD as separate element */
-var origShowScreen = showScreen;
-showScreen = function(id){
-  for(var i=0;i<Screens.length;i++) Screens[i].classList.remove("active");
-  if(id!=="__none__"){
-    var el = document.getElementById("screen-"+id);
-    if(el) el.classList.add("active");
-    document.getElementById("hud").classList.remove("active");
-  }
-};
 
 /* =========================================================================
    PARTICLE POOL (dust)
@@ -1123,11 +1094,9 @@ function renderFrame(){
 
   gl.uniform3f(uLightDir, 0.4,-0.8,0.3);
 
-  // road
   var identity = mat4Identity();
   drawGLMesh(Stage.roadGL, vp, identity);
 
-  // scenery (instance draw)
   var scenery = Stage.scenery;
   for(var i=0;i<scenery.length;i++){
     var s=scenery[i];
@@ -1136,13 +1105,11 @@ function renderFrame(){
     drawGLMesh(s.type==="tree"?Stage.treeGL:Stage.rockGL, mvp, model);
   }
 
-  // car
-  var carGL = getCarGL(Car.spec===CAR_SPECS.hatch?"hatch":(Car.spec===CAR_SPECS.turbo?"turbo":"awd"));
+  var carGL = getCarGL(Car.specKey);
   var carModel = mat4Mul(mat4Translate(Car.x,0.5,Car.z), mat4RotY(Car.heading));
   var carMvp = mat4Mul(vp, carModel);
   drawGLMesh(carGL, carMvp, carModel);
 
-  // dust particles behind car when moving fast / offroad
   if(raceState==="running" && Car.speed>10 && performance.now()-lastDustT>60){
     lastDustT=performance.now();
     var back = {x:Car.x-Math.sin(Car.heading)*2, z:Car.z+Math.cos(Car.heading)*2};
@@ -1189,6 +1156,15 @@ requestAnimationFrame(mainLoop);
 /* init settings from save */
 AudioSys.setVolume(Save.settings.volume);
 AudioSys.setMuted(Save.settings.muted);
+
+/* debug/test hook: read-only accessors, no gameplay effect */
+window.__apex = {
+  getCar: function(){ return Car; },
+  getStage: function(){ return Stage; },
+  getElapsed: function(){ return elapsedStageTime; },
+  getRaceState: function(){ return raceState; },
+  go: function(id){ go(id); }
+};
 
 })();
 </script>
