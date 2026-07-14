@@ -76,13 +76,16 @@
   .credits h3{color:var(--ink);margin:14px 0 4px;font-size:15px}
 
   /* HUD */
-  #hud{position:absolute;inset:0;display:none;pointer-events:none;z-index:6}
+  #hud{position:absolute;inset:0;display:none;pointer-events:none;z-index:8}
   #hud.on{display:block}
   .hud-top{position:absolute;top:calc(10px + var(--safe-t));left:0;right:0;display:flex;justify-content:space-between;
     padding:0 calc(14px + var(--safe-r)) 0 calc(14px + var(--safe-l))}
   .card{background:rgba(8,12,18,.62);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
   .card .lbl{font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
   .card .val{font-size:22px;font-weight:900;font-variant-numeric:tabular-nums}
+  #btnPauseHud{pointer-events:auto;cursor:pointer;flex:0 0 auto;align-self:flex-start;width:40px;height:40px;
+    display:flex;align-items:center;justify-content:center;font-size:18px;font-family:inherit;color:var(--ink)}
+  #btnPauseHud:active{background:rgba(255,196,0,.28);border-color:var(--accent)}
   .pace{position:absolute;top:calc(78px + var(--safe-t));left:50%;transform:translateX(-50%);text-align:center}
   .pace .call{font-size:clamp(22px,6vw,40px);font-weight:900;color:var(--accent);text-shadow:0 2px 0 #000}
   .pace .nxt{font-size:13px;color:var(--dim)}
@@ -123,6 +126,7 @@
       <div class="card"><div class="lbl">Time</div><div class="val" id="hudTime">0:00.00</div></div>
       <div class="card" style="text-align:center"><div class="lbl" id="hudStageName">Stage</div><div class="val" id="hudProg">0%</div></div>
       <div class="card" style="text-align:right"><div class="lbl">Split</div><div class="val" id="hudSplit">--</div></div>
+      <button class="card" id="btnPauseHud" type="button" aria-label="Pause">&#10074;&#10074;</button>
     </div>
     <div class="pace"><div class="call" id="paceCall"></div><div class="nxt" id="paceNext"></div></div>
     <div id="speedo"><div class="kmh" id="kmh">0</div><div class="u">KM/H &middot; <span class="gear" id="gear">1</span></div></div>
@@ -586,9 +590,19 @@ function stepPhysics(tr,dt){
   if(throttle>0)vFwd+=enginePower*throttle*dt;
   vFwd-=Math.sign(vFwd)*rollResist*dt;
   vFwd-=vFwd*0.015*(speedAbs/10)*dt*(onRoad?1:2.2);
-  if(brake>0){const bd=brakePower*brake*dt;if(Math.abs(vFwd)<=bd)vFwd=0;else vFwd-=Math.sign(vFwd)*bd;}
-  if(brake>0&&Math.abs(vFwd)<0.3){vFwd-=8*brake*dt;vFwd=Math.max(vFwd,-9);}
-  vFwd=clamp(vFwd,-9,maxSpeed);
+  const reverseMaxSpeed=-9*Math.min(1,setup.top);
+  if(brake>0){
+    if(vFwd>0){
+      // decelerate toward a stop
+      const bd=brakePower*brake*dt;
+      vFwd=(vFwd<=bd)?0:vFwd-bd;
+    }else if(throttle<=0){
+      // stationary (or already reversing) with brake held and no gas: roll into reverse
+      vFwd-=6*brake*dt;
+      vFwd=Math.max(vFwd,reverseMaxSpeed);
+    }
+  }
+  vFwd=clamp(vFwd,reverseMaxSpeed,maxSpeed);
   const speedFactor=clamp(speedAbs/12,0,1);
   let turnRate=steer*(2.5*setup.steer)*speedFactor;if(hand)turnRate*=1.5;
   Car.heading+=turnRate*dt*(vFwd>=0?1:-1);
@@ -806,6 +820,9 @@ window.addEventListener("keydown",e=>{
 window.addEventListener("keyup",e=>{const k=KEYMAP[e.code];
   if(k){if(k==="L")IN.keyL=false;if(k==="R")IN.keyR=false;if(k==="U")IN.keyU=false;if(k==="D")IN.keyD=false;}
   if(e.code==="Space"||e.code==="ShiftLeft"||e.code==="ShiftRight")IN.hand=false;});
+
+$("#btnPauseHud").addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();
+  if(G.state==="playing"){sfxUI();setState("pause");}});
 
 const activePointers={};
 $$("#touch .tbtn").forEach(btn=>{const t=btn.dataset.t;
