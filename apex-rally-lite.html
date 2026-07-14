@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Apex Rally Lite</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0a0d12;font-family:Arial,Helvetica,sans-serif;color:#eee;touch-action:none;user-select:none;-webkit-user-select:none;}
+  #glcanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:block;touch-action:none;}
+  #ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+  .screen{position:absolute;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:auto;background:linear-gradient(160deg,#0b1220,#1a2436 60%,#101822);}
+  .screen.active{display:flex;}
+  h1.title{font-size:clamp(28px,7vw,64px);letter-spacing:3px;color:#ffcc33;text-shadow:0 0 20px rgba(255,150,0,.6);margin:0 0 6px 0;}
+  .subtitle{color:#9db3c9;margin-bottom:24px;font-size:14px;letter-spacing:2px;}
+  .menu-col{display:flex;flex-direction:column;gap:12px;width:min(340px,86vw);}
+  button.menu-btn{padding:14px 18px;font-size:17px;background:#1c2a3c;border:2px solid #3a5a7a;color:#eef4fa;border-radius:8px;cursor:pointer;letter-spacing:1px;}
+  button.menu-btn:hover{background:#2a3f57;border-color:#ffcc33;}
+  button.menu-btn:active{transform:scale(.97);}
+  button.small-btn{padding:8px 14px;font-size:14px;background:#1c2a3c;border:2px solid #3a5a7a;color:#eef4fa;border-radius:6px;cursor:pointer;}
+  .panel{background:rgba(10,16,24,.88);border:1px solid #3a5a7a;border-radius:10px;padding:20px 26px;max-width:min(560px,92vw);max-height:80vh;overflow:auto;}
+  table.std{width:100%;border-collapse:collapse;font-size:14px;}
+  table.std th,table.std td{padding:6px 8px;border-bottom:1px solid #2a3a4a;text-align:left;}
+  #hud{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;}
+  #hud.active{display:block;}
+  .hud-top{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;font-size:14px;color:#fff;text-shadow:0 0 4px #000;}
+  .hud-box{background:rgba(0,0,0,.45);padding:6px 10px;border-radius:6px;}
+  #speedo{position:absolute;bottom:14px;right:14px;background:rgba(0,0,0,.5);border-radius:10px;padding:8px 14px;text-align:center;color:#fff;}
+  #speedo .val{font-size:30px;font-weight:bold;}
+  #pacenote{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.5);border-radius:8px;padding:6px 16px;color:#fff;font-size:18px;display:flex;align-items:center;gap:8px;}
+  #dmgbar{position:absolute;bottom:14px;left:14px;width:140px;height:12px;background:#333;border:1px solid #666;border-radius:4px;overflow:hidden;}
+  #dmgfill{height:100%;width:0%;background:#3c9;transition:width .2s;}
+  .touch-zone{position:absolute;pointer-events:auto;}
+  #steerL,#steerR{bottom:0;top:0;width:32%;background:rgba(255,255,255,.03);}
+  #steerL{left:0;}
+  #steerR{right:0;}
+  .pedal{position:absolute;bottom:16px;width:78px;height:78px;border-radius:50%;background:rgba(40,60,80,.55);border:2px solid rgba(255,255,255,.4);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;pointer-events:auto;}
+  #btnThrottle{right:16px;bottom:110px;background:rgba(50,150,80,.55);}
+  #btnBrake{right:106px;bottom:16px;background:rgba(160,50,50,.55);}
+  #btnHand{left:16px;top:50%;transform:translateY(-50%);background:rgba(160,120,30,.55);}
+  #pauseBtn{position:absolute;top:8px;right:8px;pointer-events:auto;width:40px;height:40px;border-radius:6px;background:rgba(0,0,0,.5);border:1px solid #666;color:#fff;font-size:18px;z-index:20;}
+  #steerL,#steerR{z-index:5;}
+  .pedal{z-index:10;}
+  .fade{opacity:0;animation:fadein .4s forwards;}
+  @keyframes fadein{to{opacity:1;}}
+  .center-msg{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:clamp(22px,6vw,46px);color:#ffcc33;text-shadow:0 0 12px #000;text-align:center;}
+  .hint{font-size:12px;color:#8fa3b8;margin-top:16px;text-align:center;max-width:340px;}
+  select,input[type=range]{width:100%;}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0;}
+  .carcard{border:2px solid #3a5a7a;border-radius:8px;padding:10px;margin:6px 0;cursor:pointer;}
+  .carcard.sel{border-color:#ffcc33;background:rgba(255,204,51,.08);}
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<div id="ui">
+
+  <div id="screen-boot" class="screen active">
+    <h1 class="title">APEX RALLY LITE</h1>
+    <div class="subtitle">tap / press any key</div>
+  </div>
+
+  <div id="screen-main" class="screen">
+    <h1 class="title">APEX RALLY LITE</h1>
+    <div class="subtitle">CLASSIC POINT-TO-POINT RALLY RACING</div>
+    <div class="menu-col">
+      <button class="menu-btn" data-go="career">Career</button>
+      <button class="menu-btn" data-go="quick">Quick Stage</button>
+      <button class="menu-btn" data-go="garage">Garage</button>
+      <button class="menu-btn" data-go="settings">Settings</button>
+      <button class="menu-btn" data-go="credits">Credits</button>
+    </div>
+  </div>
+
+  <div id="screen-career" class="screen">
+    <div class="panel">
+      <h2 style="margin-top:0;color:#ffcc33;">Career</h2>
+      <div id="rallyList"></div>
+      <div class="row"><button class="small-btn" id="careerBack">Back</button></div>
+    </div>
+  </div>
+
+  <div id="screen-stagepick" class="screen">
+    <div class="panel">
+      <h2 id="stagePickTitle" style="margin-top:0;color:#ffcc33;">Rally</h2>
+      <div id="stageList"></div>
+      <div class="row"><button class="small-btn" id="stagePickBack">Back</button></div>
+    </div>
+  </div>
+
+  <div id="screen-quick" class="screen">
+    <div class="panel">
+      <h2 style="margin-top:0;color:#ffcc33;">Quick Stage</h2>
+      <div id="quickList"></div>
+      <div class="row"><button class="small-btn" id="quickBack">Back</button></div>
+    </div>
+  </div>
+
+  <div id="screen-garage" class="screen">
+    <div class="panel">
+      <h2 style="margin-top:0;color:#ffcc33;">Garage</h2>
+      <div id="carList"></div>
+      <div class="row"><button class="small-btn" id="garageBack">Back</button></div>
+    </div>
+  </div>
+
+  <div id="screen-settings" class="screen">
+    <div class="panel" style="width:min(360px,86vw)">
+      <h2 style="margin-top:0;color:#ffcc33;">Settings</h2>
+      <div class="row"><label>Master Volume</label><input type="range" id="volRange" min="0" max="100" value="60"></div>
+      <div class="row"><label>Mute</label><input type="checkbox" id="muteChk"></div>
+      <div class="row"><button class="small-btn" id="resetSave">Reset Save</button></div>
+      <div class="row"><button class="small-btn" id="settingsBack">Back</button></div>
+    </div>
+  </div>
+
+  <div id="screen-credits" class="screen">
+    <div class="panel">
+      <h2 style="margin-top:0;color:#ffcc33;">Credits</h2>
+      <p>Apex Rally Lite is an original, completely self-contained game. All code, the WebGL renderer, vehicle physics, procedural audio synthesis and track generation were written from scratch for this build. No external engines, libraries, textures, fonts or audio samples are used — everything is generated at runtime in plain JavaScript and WebGL.</p>
+      <p style="color:#8fa3b8;font-size:13px;">Built as a single HTML file. Thanks for playing!</p>
+      <div class="row"><button class="small-btn" id="creditsBack">Back</button></div>
+    </div>
+  </div>
+
+  <div id="screen-stageintro" class="screen">
+    <div class="panel" style="text-align:center;">
+      <h2 id="introRally" style="margin-top:0;color:#ffcc33;"></h2>
+      <div id="introStage" style="font-size:18px;margin-bottom:10px;"></div>
+      <div id="introInfo" style="color:#9db3c9;margin-bottom:16px;"></div>
+      <button class="menu-btn" id="introStart">Start Stage</button>
+      <button class="small-btn" id="introBack" style="margin-top:10px;">Back</button>
+    </div>
+  </div>
+
+  <div id="screen-results" class="screen">
+    <div class="panel" style="text-align:center;">
+      <h2 style="margin-top:0;color:#ffcc33;">Stage Result</h2>
+      <div id="resultsBody" style="font-size:16px;line-height:1.6;"></div>
+      <button class="menu-btn" id="resultsNext" style="margin-top:14px;">Continue</button>
+    </div>
+  </div>
+
+  <div id="screen-standings" class="screen">
+    <div class="panel">
+      <h2 style="margin-top:0;color:#ffcc33;">Championship Standings</h2>
+      <table class="std" id="standingsTable"></table>
+      <div class="row"><button class="menu-btn" id="standingsBack">Continue</button></div>
+    </div>
+  </div>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-box">Stage: <span id="hudStageName"></span></div>
+      <div class="hud-box">Time: <span id="hudTime">0.0</span>s</div>
+    </div>
+    <div id="pacenote"><span id="pnIcon">→</span><span id="pnDist">--</span>m</div>
+    <div id="speedo"><div class="val"><span id="hudSpeed">0</span></div><div style="font-size:11px;">km/h</div></div>
+    <div id="dmgbar"><div id="dmgfill"></div></div>
+    <button id="pauseBtn">II</button>
+    <div class="touch-zone" id="steerL"></div>
+    <div class="touch-zone" id="steerR"></div>
+    <div class="pedal" id="btnThrottle">GAS</div>
+    <div class="pedal" id="btnBrake">BRK</div>
+    <div class="pedal" id="btnHand">HB</div>
+  </div>
+
+  <div id="screen-pause" class="screen">
+    <div class="panel" style="text-align:center;width:280px;">
+      <h2 style="margin-top:0;color:#ffcc33;">Paused</h2>
+      <div class="menu-col">
+        <button class="menu-btn" id="pauseResume">Resume</button>
+        <button class="menu-btn" id="pauseRestart">Restart Stage</button>
+        <button class="menu-btn" id="pauseQuit">Quit to Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="countdown" class="center-msg" style="display:none;"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================================
+   SAVE SYSTEM
+   ========================================================================= */
+var SAVE_KEY = "apexRallyLite_save_v1";
+var SAVE_VERSION = 1;
+function freshSave(){
+  return {
+    version: SAVE_VERSION,
+    settings: { muted:false, volume:0.6 },
+    unlockedCars: ["hatch"],
+    selectedCar: "hatch",
+    bestTimes: {},
+    career: { rallyIndex:0, stageIndex:0, standings:{} , completedRallies:[] }
+  };
+}
+var Save = null;
+function loadSave(){
+  try{
+    var raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return freshSave();
+    var obj = JSON.parse(raw);
+    if(!obj || obj.version !== SAVE_VERSION) return freshSave();
+    if(!obj.settings || !obj.bestTimes || !obj.career) return freshSave();
+    return obj;
+  }catch(e){
+    return freshSave();
+  }
+}
+function writeSave(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(Save)); }catch(e){}
+}
+Save = loadSave();
+
+/* =========================================================================
+   AUDIO (procedural, ZzFX-style tiny synth)
+   ========================================================================= */
+var AudioSys = (function(){
+  var ctx = null, master = null, unlocked=false;
+  var engineOsc=null, engineGain=null, engineFilter=null;
+  function ensure(){
+    if(ctx) return;
+    try{
+      ctx = new (window.AudioContext||window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = Save.settings.muted ? 0 : Save.settings.volume;
+      master.connect(ctx.destination);
+    }catch(e){ ctx=null; }
+  }
+  function unlock(){
+    if(unlocked) return;
+    ensure();
+    if(ctx && ctx.state==="suspended") ctx.resume();
+    unlocked = true;
+    startEngine();
+  }
+  function setVolume(v){
+    Save.settings.volume=v;
+    if(master) master.gain.value = Save.settings.muted?0:v;
+  }
+  function setMuted(m){
+    Save.settings.muted=m;
+    if(master) master.gain.value = m?0:Save.settings.volume;
+  }
+  function blip(freq,dur,type,vol){
+    if(!ctx) return;
+    var o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type||"square"; o.frequency.value=freq;
+    g.gain.value=(vol!==undefined?vol:0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+(dur||0.1));
+    o.connect(g); g.connect(master);
+    o.start(); o.stop(ctx.currentTime+(dur||0.1)+0.02);
+  }
+  function click(){ blip(880,0.06,"square",0.15); }
+  function crash(){
+    if(!ctx) return;
+    var bufSize = ctx.sampleRate*0.3;
+    var buf = ctx.createBuffer(1,bufSize,ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for(var i=0;i<bufSize;i++){ d[i]=(Math.random()*2-1)*(1-i/bufSize); }
+    var src = ctx.createBufferSource(); src.buffer=buf;
+    var g = ctx.createGain(); g.gain.value=0.5;
+    src.connect(g); g.connect(master);
+    src.start();
+  }
+  function startEngine(){
+    if(!ctx || engineOsc) return;
+    engineOsc = ctx.createOscillator();
+    engineOsc.type="sawtooth";
+    engineFilter = ctx.createBiquadFilter();
+    engineFilter.type="lowpass";
+    engineFilter.frequency.value=800;
+    engineGain = ctx.createGain();
+    engineGain.gain.value=0.0;
+    engineOsc.connect(engineFilter);
+    engineFilter.connect(engineGain);
+    engineGain.connect(master);
+    engineOsc.frequency.value=60;
+    engineOsc.start();
+  }
+  var lastSquealT=0;
+  function squeal(now){
+    if(!ctx) return;
+    if(now-lastSquealT<0.25) return;
+    lastSquealT=now;
+    blip(1400+Math.random()*300,0.12,"sawtooth",0.06);
+  }
+  function updateEngine(rpm, throttle){
+    if(!engineOsc) return;
+    var f = 40 + rpm*2.6;
+    engineOsc.frequency.setTargetAtTime(f, ctx.currentTime, 0.03);
+    engineFilter.frequency.setTargetAtTime(400+rpm*8, ctx.currentTime,0.05);
+    engineGain.gain.setTargetAtTime(0.05+throttle*0.12, ctx.currentTime,0.05);
+  }
+  return { unlock:unlock, setVolume:setVolume, setMuted:setMuted, click:click, crash:crash, squeal:squeal, updateEngine:updateEngine, ensure:ensure };
+})();
+
+/* =========================================================================
+   WEBGL RENDERER (compact, custom)
+   ========================================================================= */
+var canvas = document.getElementById("glcanvas");
+var gl = canvas.getContext("webgl", {antialias:true}) || canvas.getContext("experimental-webgl");
+if(!gl){ alert("WebGL not supported"); }
+
+function resize(){
+  var dpr = Math.min(window.devicePixelRatio||1, 2);
+  canvas.width = Math.floor(window.innerWidth*dpr);
+  canvas.height = Math.floor(window.innerHeight*dpr);
+  canvas.style.width = window.innerWidth+"px";
+  canvas.style.height = window.innerHeight+"px";
+  if(gl) gl.viewport(0,0,canvas.width,canvas.height);
+}
+window.addEventListener("resize", resize);
+resize();
+
+var VS = "attribute vec3 aPos;attribute vec3 aColor;attribute vec3 aNormal;"+
+"uniform mat4 uMVP; uniform mat4 uModel; uniform vec3 uLightDir;"+
+"varying vec3 vColor; varying float vLight;"+
+"void main(){"+
+"  gl_Position = uMVP * vec4(aPos,1.0);"+
+"  vec3 n = normalize(mat3(uModel)*aNormal);"+
+"  float diff = max(dot(n, -uLightDir), 0.0);"+
+"  vLight = 0.45 + diff*0.65;"+
+"  vColor = aColor;"+
+"}";
+var FS = "precision mediump float; varying vec3 vColor; varying float vLight;"+
+"void main(){ gl_FragColor = vec4(vColor*vLight,1.0); }";
+
+function compile(type, src){
+  var s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+    console.error("Shader error:", gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+var prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+
+var aPos = gl.getAttribLocation(prog,"aPos");
+var aColor = gl.getAttribLocation(prog,"aColor");
+var aNormal = gl.getAttribLocation(prog,"aNormal");
+var uMVP = gl.getUniformLocation(prog,"uMVP");
+var uModel = gl.getUniformLocation(prog,"uModel");
+var uLightDir = gl.getUniformLocation(prog,"uLightDir");
+
+gl.enable(gl.DEPTH_TEST);
+gl.clearColor(0.55,0.72,0.85,1.0);
+
+/* ---- tiny mat4 lib ---- */
+function mat4Identity(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+function mat4Mul(a,b){
+  var o=new Array(16);
+  for(var r=0;r<4;r++) for(var c=0;c<4;c++){
+    var s=0;
+    for(var k=0;k<4;k++) s+=a[k*4+r]*b[c*4+k];
+    o[c*4+r]=s;
+  }
+  return o;
+}
+function mat4Perspective(fovy,aspect,near,far){
+  var f=1/Math.tan(fovy/2), nf=1/(near-far);
+  return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0];
+}
+function mat4LookAt(eye,center,up){
+  var zx=eye[0]-center[0], zy=eye[1]-center[1], zz=eye[2]-center[2];
+  var zl=Math.hypot(zx,zy,zz)||1; zx/=zl; zy/=zl; zz/=zl;
+  var xx=up[1]*zz-up[2]*zy, xy=up[2]*zx-up[0]*zz, xz=up[0]*zy-up[1]*zx;
+  var xl=Math.hypot(xx,xy,xz)||1; xx/=xl; xy/=xl; xz/=xl;
+  var yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  return [xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
+    -(xx*eye[0]+xy*eye[1]+xz*eye[2]), -(yx*eye[0]+yy*eye[1]+yz*eye[2]), -(zx*eye[0]+zy*eye[1]+zz*eye[2]), 1];
+}
+function mat4Translate(x,y,z){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]; }
+function mat4RotY(a){ var c=Math.cos(a),s=Math.sin(a); return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]; }
+function mat4RotX(a){ var c=Math.cos(a),s=Math.sin(a); return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]; }
+function mat4RotZ(a){ var c=Math.cos(a),s=Math.sin(a); return [c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1]; }
+function mat4Scale(x,y,z){ return [x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]; }
+
+/* ---- mesh builder: simple box ---- */
+function buildBox(w,h,d,color){
+  var x=w/2,y=h/2,z=d/2;
+  var c=color;
+  var faces = [
+    // pos: 4 verts, normal
+    [[-x,-y,z],[x,-y,z],[x,y,z],[-x,y,z], [0,0,1]],
+    [[x,-y,-z],[-x,-y,-z],[-x,y,-z],[x,y,-z], [0,0,-1]],
+    [[-x,-y,-z],[-x,-y,z],[-x,y,z],[-x,y,-z], [-1,0,0]],
+    [[x,-y,z],[x,-y,-z],[x,y,-z],[x,y,z], [1,0,0]],
+    [[-x,y,z],[x,y,z],[x,y,-z],[-x,y,-z], [0,1,0]],
+    [[-x,-y,-z],[x,-y,-z],[x,-y,z],[-x,-y,z], [0,-1,0]]
+  ];
+  var pos=[],col=[],nrm=[],idx=[],vc=0;
+  for(var f=0;f<6;f++){
+    var fa=faces[f], n=fa[4];
+    for(var i=0;i<4;i++){ pos.push(fa[i][0],fa[i][1],fa[i][2]); col.push(c[0],c[1],c[2]); nrm.push(n[0],n[1],n[2]); }
+    idx.push(vc,vc+1,vc+2, vc,vc+2,vc+3); vc+=4;
+  }
+  return {pos:pos,col:col,nrm:nrm,idx:idx};
+}
+function mergeMeshes(meshes){
+  var pos=[],col=[],nrm=[],idx=[],base=0;
+  for(var m=0;m<meshes.length;m++){
+    var mesh=meshes[m];
+    for(var i=0;i<mesh.pos.length;i++) pos.push(mesh.pos[i]);
+    for(i=0;i<mesh.col.length;i++) col.push(mesh.col[i]);
+    for(i=0;i<mesh.nrm.length;i++) nrm.push(mesh.nrm[i]);
+    for(i=0;i<mesh.idx.length;i++) idx.push(mesh.idx[i]+base);
+    base += mesh.pos.length/3;
+  }
+  return {pos:pos,col:col,nrm:nrm,idx:idx};
+}
+function transformMesh(mesh, mat){
+  var pos = mesh.pos.slice(), nrm=mesh.nrm.slice();
+  for(var i=0;i<pos.length;i+=3){
+    var x=pos[i],y=pos[i+1],z=pos[i+2];
+    pos[i]   = mat[0]*x+mat[4]*y+mat[8]*z+mat[12];
+    pos[i+1] = mat[1]*x+mat[5]*y+mat[9]*z+mat[13];
+    pos[i+2] = mat[2]*x+mat[6]*y+mat[10]*z+mat[14];
+    var nx=nrm[i],ny=nrm[i+1],nz=nrm[i+2];
+    nrm[i]   = mat[0]*nx+mat[4]*ny+mat[8]*nz;
+    nrm[i+1] = mat[1]*nx+mat[5]*ny+mat[9]*nz;
+    nrm[i+2] = mat[2]*nx+mat[6]*ny+mat[10]*nz;
+  }
+  return {pos:pos,col:mesh.col,nrm:nrm,idx:mesh.idx};
+}
+
+function makeGLMesh(mesh){
+  var vbPos=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbPos); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(mesh.pos),gl.STATIC_DRAW);
+  var vbCol=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbCol); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(mesh.col),gl.STATIC_DRAW);
+  var vbNrm=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbNrm); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(mesh.nrm),gl.STATIC_DRAW);
+  var ib=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(mesh.idx),gl.STATIC_DRAW);
+  return {vbPos:vbPos,vbCol:vbCol,vbNrm:vbNrm,ib:ib,count:mesh.idx.length};
+}
+function drawGLMesh(glmesh, mvp, model){
+  gl.bindBuffer(gl.ARRAY_BUFFER, glmesh.vbPos);
+  gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0); gl.enableVertexAttribArray(aPos);
+  gl.bindBuffer(gl.ARRAY_BUFFER, glmesh.vbCol);
+  gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,0,0); gl.enableVertexAttribArray(aColor);
+  gl.bindBuffer(gl.ARRAY_BUFFER, glmesh.vbNrm);
+  gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,0,0); gl.enableVertexAttribArray(aNormal);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, glmesh.ib);
+  gl.uniformMatrix4fv(uMVP,false,mvp);
+  gl.uniformMatrix4fv(uModel,false,model);
+  gl.drawElements(gl.TRIANGLES, glmesh.count, gl.UNSIGNED_SHORT, 0);
+}
+
+/* =========================================================================
+   TRACK GENERATION
+   ========================================================================= */
+// Deterministic PRNG
+function makeRng(seed){
+  var s = seed>>>0 || 1;
+  return function(){
+    s ^= s<<13; s^=s>>>17; s^=s<<5; s>>>=0;
+    return (s>>>0)/4294967296;
+  };
+}
+
+var TRACK_WIDTH = 10;
+function genTrack(seed, numSegs, seg_len){
+  var rng = makeRng(seed);
+  var pts = []; // centerline points {x,z,heading}
+  var x=0,z=0,heading=0;
+  pts.push({x:x,z:z,heading:heading, corner:0});
+  var segsSinceTurn = 6;
+  var paceNotes = [];
+  for(var i=0;i<numSegs;i++){
+    var turnChance = segsSinceTurn>3 ? 0.28 : 0.05;
+    var turn = 0;
+    if(rng() < turnChance){
+      var mag = 0.35 + rng()*0.9;
+      turn = (rng()<0.5?-1:1) * mag;
+      segsSinceTurn = 0;
+      // pace note severity: 1 (hairpin) sharp - 6 (flat) gentle
+      var sev = Math.max(1, Math.min(6, Math.round(7 - mag*6)));
+      paceNotes.push({ segIndex:i, dir: turn<0?"L":"R", severity:sev });
+    } else segsSinceTurn++;
+    // smooth turning across a few segments
+    heading += turn*0.16;
+    x += Math.sin(heading)*seg_len;
+    z -= Math.cos(heading)*seg_len;
+    pts.push({x:x,z:z,heading:heading, corner: turn});
+  }
+  return { pts:pts, paceNotes:paceNotes, width:TRACK_WIDTH };
+}
+
+function trackLength(track){
+  var L=0;
+  for(var i=1;i<track.pts.length;i++){
+    var a=track.pts[i-1], b=track.pts[i];
+    L += Math.hypot(b.x-a.x, b.z-a.z);
+  }
+  return L;
+}
+
+// Build renderable meshes for the track (road ribbon + scenery) as GL meshes.
+function buildTrackMeshes(track, rngSeed){
+  var rng = makeRng(rngSeed+777);
+  var roadMeshes = [];
+  var sceneryBoxes = [];
+  var w = track.width;
+  for(var i=1;i<track.pts.length;i++){
+    var a=track.pts[i-1], b=track.pts[i];
+    var dx=b.x-a.x, dz=b.z-a.z;
+    var len=Math.hypot(dx,dz)||0.001;
+    var nx=-dz/len, nz=dx/len; // normal
+    var ax0=a.x+nx*w/2, az0=a.z+nz*w/2;
+    var ax1=a.x-nx*w/2, az1=a.z-nz*w/2;
+    var bx0=b.x+nx*w/2, bz0=b.z+nz*w/2;
+    var bx1=b.x-nx*w/2, bz1=b.z-nz*w/2;
+    var shade = (i%2===0)? [0.32,0.31,0.34] : [0.30,0.29,0.32];
+    roadMeshes.push({
+      pos:[ax0,0,az0, ax1,0,az1, bx1,0,bz1, bx0,0,bz0],
+      col:[shade[0],shade[1],shade[2], shade[0],shade[1],shade[2], shade[0],shade[1],shade[2], shade[0],shade[1],shade[2]],
+      nrm:[0,1,0,0,1,0,0,1,0,0,1,0],
+      idx:[0,1,2,0,2,3]
+    });
+    // edge markers (rumble strips) every other segment
+    if(i%4===0){
+      var mk = [0.9,0.2,0.2];
+      var ex0=a.x+nx*(w/2+0.3), ez0=a.z+nz*(w/2+0.3);
+      var ex1=b.x+nx*(w/2+0.3), ez1=b.z+nz*(w/2+0.3);
+      roadMeshes.push({
+        pos:[ax0,0.02,az0, ex0,0.02,ez0, ex1,0.02,ez1, bx0,0.02,bz0],
+        col:[mk[0],mk[1],mk[2], mk[0],mk[1],mk[2], mk[0],mk[1],mk[2], mk[0],mk[1],mk[2]],
+        nrm:[0,1,0,0,1,0,0,1,0,0,1,0], idx:[0,1,2,0,2,3]
+      });
+    }
+    // scenery: trees/rocks off to the sides, sparse
+    if(rng()<0.35){
+      var side = rng()<0.5?1:-1;
+      var dist = w/2+3+rng()*10;
+      var tx=a.x+nx*side*dist, tz=a.z+nz*side*dist;
+      sceneryBoxes.push({x:tx,z:tz,type: rng()<0.75?"tree":"rock"});
+    }
+  }
+  return { roadMeshes: roadMeshes, scenery: sceneryBoxes };
+}
+
+/* =========================================================================
+   CARS / SPECS
+   ========================================================================= */
+var CAR_SPECS = {
+  hatch: { name:"Rally Hatch", color:[0.85,0.15,0.15], accel:16, maxSpeed:52, grip:7.5, brake:22, mass:1 },
+  turbo: { name:"Turbo Coupe", color:[0.1,0.4,0.9], accel:19, maxSpeed:60, grip:7.0, brake:24, mass:1.05 },
+  awd:   { name:"AWD Legend", color:[0.9,0.75,0.05], accel:21, maxSpeed:58, grip:9.0, brake:25, mass:1.1 }
+};
+
+/* =========================================================================
+   CAREER DATA
+   ========================================================================= */
+var RALLIES = [
+  { name:"Finland", seedBase:1001, stages:[ {name:"Sprint Forest", len:70, segLen:9},
+                                             {name:"Lake Loop", len:90, segLen:9} ] },
+  { name:"Monte-Carlo", seedBase:2002, stages:[ {name:"Col de Turini", len:80, segLen:8.5},
+                                                 {name:"Mountain Descent", len:100, segLen:8.5} ] },
+  { name:"Acropolis", seedBase:3003, stages:[ {name:"Rocky Pass", len:85, segLen:9},
+                                               {name:"Olive Grove", len:95, segLen:9} ] },
+  { name:"Safari", seedBase:4004, stages:[ {name:"Savanna Run", len:100, segLen:10},
+                                            {name:"River Crossing", len:110, segLen:10} ] }
+];
+
+/* =========================================================================
+   GAME STATE / SCREEN MANAGEMENT
+   ========================================================================= */
+var Screens = document.querySelectorAll(".screen");
+function showScreen(id){
+  for(var i=0;i<Screens.length;i++) Screens[i].classList.remove("active");
+  var el = document.getElementById("screen-"+id);
+  if(el) el.classList.add("active");
+  document.getElementById("hud").classList.remove("active");
+}
+function go(id){ AudioSys.click(); showScreen(id); renderMenusIfNeeded(id); }
+
+document.querySelectorAll("[data-go]").forEach(function(b){
+  b.addEventListener("click", function(){ go(b.getAttribute("data-go")); });
+});
+
+document.getElementById("careerBack").onclick=function(){ go("main"); };
+document.getElementById("quickBack").onclick=function(){ go("main"); };
+document.getElementById("garageBack").onclick=function(){ go("main"); };
+document.getElementById("settingsBack").onclick=function(){ go("main"); };
+document.getElementById("creditsBack").onclick=function(){ go("main"); };
+document.getElementById("stagePickBack").onclick=function(){ go("career"); };
+
+/* boot screen -> main on any input */
+var booted=false;
+function doBoot(){
+  if(booted) return; booted=true;
+  AudioSys.unlock();
+  go("main");
+}
+document.getElementById("screen-boot").addEventListener("click", doBoot);
+window.addEventListener("keydown", function(){ doBoot(); }, {once:false});
+
+/* ---- Career list ---- */
+function renderMenusIfNeeded(id){
+  if(id==="career") renderCareerList();
+  if(id==="quick") renderQuickList();
+  if(id==="garage") renderGarage();
+  if(id==="settings") renderSettings();
+}
+function renderCareerList(){
+  var html="";
+  for(var i=0;i<RALLIES.length;i++){
+    var r=RALLIES[i];
+    var completed = Save.career.completedRallies.indexOf(i)>=0;
+    html += '<div class="carcard'+(i===Save.career.rallyIndex?" sel":"")+'" data-rally="'+i+'">'+
+      '<b>'+r.name+'</b> — '+r.stages.length+' stages '+(completed?' <span style="color:#3c9">(Completed)</span>':'')+'</div>';
+  }
+  document.getElementById("rallyList").innerHTML = html;
+  document.querySelectorAll("#rallyList [data-rally]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var idx = parseInt(el.getAttribute("data-rally"),10);
+      openRallyStages(idx);
+    });
+  });
+}
+function openRallyStages(rallyIdx){
+  AudioSys.click();
+  Save.career.rallyIndex = rallyIdx;
+  var r = RALLIES[rallyIdx];
+  document.getElementById("stagePickTitle").textContent = r.name;
+  var html="";
+  for(var i=0;i<r.stages.length;i++){
+    var s = r.stages[i];
+    var key = rallyIdx+"_"+i;
+    var best = Save.bestTimes[key];
+    html += '<div class="carcard" data-stage="'+i+'"><b>Stage '+(i+1)+': '+s.name+'</b><br>'+
+      '<span style="color:#9db3c9;font-size:13px;">Best: '+(best? best.toFixed(1)+"s" : "--")+'</span></div>';
+  }
+  document.getElementById("stageList").innerHTML = html;
+  document.querySelectorAll("#stageList [data-stage]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var si = parseInt(el.getAttribute("data-stage"),10);
+      startCareerStage(rallyIdx, si);
+    });
+  });
+  showScreen("stagepick");
+}
+
+function renderQuickList(){
+  var html="";
+  for(var ri=0;ri<RALLIES.length;ri++){
+    for(var si=0; si<RALLIES[ri].stages.length; si++){
+      var s = RALLIES[ri].stages[si];
+      html += '<div class="carcard" data-r="'+ri+'" data-s="'+si+'"><b>'+RALLIES[ri].name+' — '+s.name+'</b></div>';
+    }
+  }
+  document.getElementById("quickList").innerHTML = html;
+  document.querySelectorAll("#quickList [data-r]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var ri=parseInt(el.getAttribute("data-r"),10), si=parseInt(el.getAttribute("data-s"),10);
+      startQuickStage(ri,si);
+    });
+  });
+}
+function renderGarage(){
+  var html="";
+  Object.keys(CAR_SPECS).forEach(function(key){
+    var c = CAR_SPECS[key];
+    var unlocked = Save.unlockedCars.indexOf(key)>=0;
+    var sel = Save.selectedCar===key;
+    html += '<div class="carcard'+(sel?" sel":"")+'" data-car="'+key+'" style="opacity:'+(unlocked?1:0.5)+'">'+
+      '<b>'+c.name+'</b><br><span style="font-size:12px;color:#9db3c9;">Accel '+c.accel+' | Top '+c.maxSpeed+' | Grip '+c.grip+'</span>'+
+      (unlocked? '' : ' <span style="color:#e77;">(locked)</span>')+
+    '</div>';
+  });
+  document.getElementById("carList").innerHTML = html;
+  document.querySelectorAll("#carList [data-car]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var key = el.getAttribute("data-car");
+      if(Save.unlockedCars.indexOf(key)>=0){ Save.selectedCar=key; writeSave(); renderGarage(); AudioSys.click(); }
+    });
+  });
+}
+function renderSettings(){
+  document.getElementById("volRange").value = Math.round(Save.settings.volume*100);
+  document.getElementById("muteChk").checked = Save.settings.muted;
+}
+document.getElementById("volRange").addEventListener("input", function(e){
+  var v = parseInt(e.target.value,10)/100; AudioSys.setVolume(v); writeSave();
+});
+document.getElementById("muteChk").addEventListener("change", function(e){
+  AudioSys.setMuted(e.target.checked); writeSave();
+});
+document.getElementById("resetSave").addEventListener("click", function(){
+  Save = freshSave(); writeSave(); renderSettings(); AudioSys.click();
+});
+
+/* =========================================================================
+   PHYSICS + GAMEPLAY
+   ========================================================================= */
+var Input = { steer:0, throttle:0, brake:0, handbrake:false };
+var keys = {};
+window.addEventListener("keydown", function(e){
+  keys[e.code]=true;
+  if(e.code==="KeyR") restartStage();
+  if(e.code==="Escape" || e.code==="KeyP") togglePause();
+});
+window.addEventListener("keyup", function(e){ keys[e.code]=false; });
+
+function pollKeyboard(){
+  var s=0, t=0, b=0, h=false;
+  if(keys["ArrowLeft"]||keys["KeyA"]) s -= 1;
+  if(keys["ArrowRight"]||keys["KeyD"]) s += 1;
+  if(keys["ArrowUp"]||keys["KeyW"]) t = 1;
+  if(keys["ArrowDown"]||keys["KeyS"]) b = 1;
+  if(keys["Space"]) h = true;
+  return {s:s,t:t,b:b,h:h};
+}
+
+/* Touch controls */
+var touchState = { steerTouches:{}, throttle:false, brake:false, handbrake:false, steerVal:0 };
+function bindTouchZone(el, onMove, onEnd){
+  el.addEventListener("pointerdown", function(e){ el.setPointerCapture(e.pointerId); onMove(e); }, {passive:true});
+  el.addEventListener("pointermove", function(e){ if(e.buttons||e.pressure>0) onMove(e); }, {passive:true});
+  el.addEventListener("pointerup", onEnd, {passive:true});
+  el.addEventListener("pointercancel", onEnd, {passive:true});
+}
+var steerLEl=document.getElementById("steerL"), steerREl=document.getElementById("steerR");
+var steerLeftActive=false, steerRightActive=false;
+bindTouchZone(steerLEl, function(){ steerLeftActive=true; }, function(){ steerLeftActive=false; });
+bindTouchZone(steerREl, function(){ steerRightActive=true; }, function(){ steerRightActive=false; });
+function bindPedal(id, onDown, onUp){
+  var el=document.getElementById(id);
+  el.addEventListener("pointerdown", function(e){ el.setPointerCapture(e.pointerId); onDown(); AudioSys.unlock(); }, {passive:true});
+  el.addEventListener("pointerup", onUp, {passive:true});
+  el.addEventListener("pointercancel", onUp, {passive:true});
+  el.addEventListener("pointerleave", onUp, {passive:true});
+}
+bindPedal("btnThrottle", function(){ touchState.throttle=true; }, function(){ touchState.throttle=false; });
+bindPedal("btnBrake", function(){ touchState.brake=true; }, function(){ touchState.brake=false; });
+bindPedal("btnHand", function(){ touchState.handbrake=true; }, function(){ touchState.handbrake=false; });
+
+document.getElementById("glcanvas").addEventListener("pointerdown", function(){ AudioSys.unlock(); doBoot(); }, {passive:true});
+
+/* ---- Car / physics state ---- */
+var Car = null;
+function newCarState(specKey){
+  var spec = CAR_SPECS[specKey];
+  return {
+    spec:spec, x:0,z:0,y:0, heading:0,
+    vx:0, vz:0, speed:0, steerAngle:0,
+    damage:0, wheelSpin:0, rpm:800,
+    offRoadTimer:0
+  };
+}
+
+var Stage = null; // current stage runtime state
+var raceState = "idle"; // idle, countdown, running, finished, paused
+var physAccumulator = 0;
+var PHYS_DT = 1/60;
+var lastFrameT = 0;
+var elapsedStageTime = 0;
+var penaltySeconds = 0;
+
+function buildStage(rallyIdx, stageIdx, isQuick){
+  var rally = RALLIES[rallyIdx];
+  var stageDef = rally.stages[stageIdx];
+  var seed = rally.seedBase + stageIdx*97;
+  var track = genTrack(seed, stageDef.len, stageDef.segLen);
+  var meshData = buildTrackMeshes(track, seed);
+  // build GL meshes
+  var roadMerged = mergeMeshes(meshData.roadMeshes);
+  var roadGL = makeGLMesh(roadMerged);
+  var treeBase = buildBox(1.2,3,1.2,[0.15,0.5,0.2]);
+  var rockBase = buildBox(1.4,1.0,1.4,[0.5,0.5,0.5]);
+  var treeGL = makeGLMesh(treeBase);
+  var rockGL = makeGLMesh(rockBase);
+
+  var carSpec = Save.selectedCar;
+  Car = newCarState(carSpec);
+  Car.x = track.pts[0].x; Car.z = track.pts[0].z; Car.heading = track.pts[0].heading;
+
+  Stage = {
+    rallyIdx: rallyIdx, stageIdx: stageIdx, isQuick: !!isQuick,
+    track: track, roadGL: roadGL, treeGL: treeGL, rockGL: rockGL, scenery: meshData.scenery,
+    length: trackLength(track),
+    name: stageDef.name, rallyName: rally.name,
+    finishDist: trackLength(track) - 5,
+    progressDist: 0,
+    paceNoteIdx: 0
+  };
+  elapsedStageTime = 0;
+  penaltySeconds = 0;
+}
+
+function closestTrackInfo(track, x, z){
+  // find nearest segment index by scanning (small counts, fine)
+  var best=1e12, bestI=0, bestT=0;
+  for(var i=1;i<track.pts.length;i++){
+    var a=track.pts[i-1], b=track.pts[i];
+    var dx=b.x-a.x, dz=b.z-a.z;
+    var len2=dx*dx+dz*dz || 0.0001;
+    var t = ((x-a.x)*dx + (z-a.z)*dz)/len2;
+    t = Math.max(0,Math.min(1,t));
+    var px=a.x+dx*t, pz=a.z+dz*t;
+    var d=(px-x)*(px-x)+(pz-z)*(pz-z);
+    if(d<best){ best=d; bestI=i; bestT=t; }
+  }
+  return { segIndex:bestI, dist2:best, t:bestT };
+}
+
+function segDistanceAlong(track, segIndex, t){
+  var d=0;
+  for(var i=1;i<segIndex;i++){
+    var a=track.pts[i-1], b=track.pts[i];
+    d += Math.hypot(b.x-a.x, b.z-a.z);
+  }
+  if(segIndex>=1){
+    var a2=track.pts[segIndex-1], b2=track.pts[segIndex];
+    d += Math.hypot(b2.x-a2.x, b2.z-a2.z)*t;
+  }
+  return d;
+}
+
+function stepPhysics(dt){
+  if(raceState !== "running") return;
+  var kb = pollKeyboard();
+  var steer = kb.s;
+  if(steerLeftActive) steer -= 1;
+  if(steerRightActive) steer += 1;
+  steer = Math.max(-1, Math.min(1, steer));
+  var throttle = kb.t || (touchState.throttle?1:0);
+  var brake = kb.b || (touchState.brake?1:0);
+  var handbrake = kb.h || touchState.handbrake;
+
+  var spec = Car.spec;
+  var forward = { x: Math.sin(Car.heading), z: -Math.cos(Car.heading) };
+
+  var speedAlong = Car.vx*forward.x + Car.vz*forward.z;
+  Car.speed = Math.hypot(Car.vx, Car.vz);
+
+  // accel/brake
+  var accelForce = 0;
+  if(throttle>0) accelForce = spec.accel * throttle;
+  if(brake>0) accelForce -= spec.brake * brake * (speedAlong>0.2?1:0.3);
+  if(handbrake) accelForce -= spec.brake*0.5;
+
+  // steering affects heading based on speed
+  var steerRate = steer * (0.9 + Math.min(1,Car.speed/25)*1.6) * (handbrake?1.6:1.0);
+  Car.heading += steerRate * dt * (speedAlong>=0?1:-1);
+
+  // apply forward accel
+  var newForward = { x: Math.sin(Car.heading), z: -Math.cos(Car.heading) };
+  speedAlong += accelForce*dt;
+  // drag
+  speedAlong *= (1 - 0.02*dt*60*0.02);
+  speedAlong = Math.max(-spec.maxSpeed*0.4, Math.min(spec.maxSpeed, speedAlong));
+
+  // lateral grip: blend velocity direction toward forward direction (slip when handbrake or high steer)
+  var gripFactor = handbrake ? 0.15 : Math.min(1, spec.grip*dt);
+  Car.vx = Car.vx + (newForward.x*speedAlong - Car.vx) * gripFactor;
+  Car.vz = Car.vz + (newForward.z*speedAlong - Car.vz) * gripFactor;
+
+  var squealing = handbrake || Math.abs(steer)>0.6 && Car.speed>15;
+  if(squealing) AudioSys.squeal(performance.now()/1000);
+
+  Car.x += Car.vx*dt;
+  Car.z += Car.vz*dt;
+
+  // track boundary collision
+  var info = closestTrackInfo(Stage.track, Car.x, Car.z);
+  var halfW = Stage.track.width/2;
+  var distFromCenter = Math.sqrt(info.dist2);
+  if(distFromCenter > halfW + 1.0){
+    // off track: heavy penalty & slow down, small damage
+    Car.offRoadTimer += dt;
+    Car.vx *= 0.9; Car.vz *= 0.9;
+    if(Car.offRoadTimer>0.15){
+      Car.damage = Math.min(100, Car.damage + dt*8);
+      Car.offRoadTimer=0;
+    }
+  } else if(distFromCenter > halfW){
+    Car.vx *= 0.985; Car.vz *= 0.985;
+  }
+  if(distFromCenter > halfW + 6){
+    // hit a hard edge/rock — bounce + crash sound + damage
+    Car.vx *= -0.3; Car.vz *= -0.3;
+    Car.damage = Math.min(100, Car.damage + 6);
+    AudioSys.crash();
+  }
+
+  Car.rpm = 800 + Math.min(1, Math.abs(speedAlong)/spec.maxSpeed) * 6200 + Math.abs(steer)*200;
+  AudioSys.updateEngine(Car.rpm, throttle);
+
+  // progress along track
+  var dist = segDistanceAlong(Stage.track, info.segIndex, info.t);
+  if(dist > Stage.progressDist) Stage.progressDist = dist;
+
+  // pace note advance
+  updatePaceNoteHud(info.segIndex);
+
+  elapsedStageTime += dt;
+
+  if(Stage.progressDist >= Stage.finishDist){
+    finishStage();
+  }
+  if(Car.damage>=100){
+    penaltySeconds += 5;
+    Car.damage = 60; // recover partially, continue with penalty
+  }
+}
+
+function updatePaceNoteHud(segIndex){
+  var notes = Stage.track.paceNotes;
+  // find next upcoming note ahead of current seg
+  var next=null;
+  for(var i=0;i<notes.length;i++){
+    if(notes[i].segIndex >= segIndex-1){ next=notes[i]; break; }
+  }
+  var icon = document.getElementById("pnIcon");
+  var dist = document.getElementById("pnDist");
+  if(next){
+    var d = Math.max(0, (next.segIndex - segIndex) * 9);
+    icon.textContent = next.dir==="L" ? "⬅" : "➡";
+    icon.style.color = next.severity<=2 ? "#e33" : (next.severity<=4?"#eb3":"#3c9");
+    dist.textContent = Math.round(d);
+  } else {
+    icon.textContent = "🏁";
+    dist.textContent = "FINISH";
+  }
+}
+
+function finishStage(){
+  raceState = "finished";
+  var finalTime = elapsedStageTime + penaltySeconds;
+  var key = Stage.rallyIdx+"_"+Stage.stageIdx;
+  var best = Save.bestTimes[key];
+  var isNewBest = !best || finalTime < best;
+  if(isNewBest) Save.bestTimes[key] = finalTime;
+
+  // championship points (simple): faster time band -> points
+  if(!Stage.isQuick){
+    var pts = finalTime < 60 ? 25 : finalTime < 90 ? 18 : finalTime<130 ? 12 : 6;
+    var stKey = "player";
+    Save.career.standings[stKey] = (Save.career.standings[stKey]||0) + pts;
+  }
+  writeSave();
+
+  var body = document.getElementById("resultsBody");
+  body.innerHTML = "Stage Time: <b>"+elapsedStageTime.toFixed(1)+"s</b><br>"+
+    "Penalties: <b>"+penaltySeconds.toFixed(1)+"s</b><br>"+
+    "Total: <b>"+finalTime.toFixed(1)+"s</b><br>"+
+    (isNewBest? '<span style="color:#3c9;">New Best Time!</span>' : "Best: "+best.toFixed(1)+"s");
+  showScreen("results");
+  document.getElementById("resultsNext").onclick = function(){
+    AudioSys.click();
+    if(Stage.isQuick){ go("quick"); return; }
+    // advance career
+    var rally = RALLIES[Stage.rallyIdx];
+    var nextStage = Stage.stageIdx+1;
+    if(nextStage < rally.stages.length){
+      Save.career.stageIndex = nextStage;
+      writeSave();
+      showStandings(function(){ startCareerStage(Stage.rallyIdx, nextStage); });
+    } else {
+      if(Save.career.completedRallies.indexOf(Stage.rallyIdx)<0) Save.career.completedRallies.push(Stage.rallyIdx);
+      writeSave();
+      showStandings(function(){ go("career"); });
+    }
+  };
+}
+
+function showStandings(cb){
+  var tbl = document.getElementById("standingsTable");
+  var rows = "<tr><th>Driver</th><th>Points</th></tr>";
+  var std = Save.career.standings.player || 0;
+  rows += "<tr><td>You</td><td>"+std+"</td></tr>";
+  rows += "<tr><td>Rival A</td><td>"+Math.round(std*0.8+10)+"</td></tr>";
+  rows += "<tr><td>Rival B</td><td>"+Math.round(std*0.6+15)+"</td></tr>";
+  tbl.innerHTML = rows;
+  showScreen("standings");
+  document.getElementById("standingsBack").onclick = function(){ AudioSys.click(); cb(); };
+}
+
+function startCareerStage(rallyIdx, stageIdx){
+  Save.career.rallyIndex = rallyIdx; Save.career.stageIndex = stageIdx; writeSave();
+  var rally=RALLIES[rallyIdx], stageDef=rally.stages[stageIdx];
+  document.getElementById("introRally").textContent = rally.name;
+  document.getElementById("introStage").textContent = "Stage "+(stageIdx+1)+": "+stageDef.name;
+  document.getElementById("introInfo").textContent = "Point-to-point stage. Watch the pace notes!";
+  showScreen("stageintro");
+  document.getElementById("introBack").onclick=function(){ go("career"); };
+  document.getElementById("introStart").onclick=function(){
+    buildStage(rallyIdx, stageIdx, false);
+    beginCountdown();
+  };
+}
+function startQuickStage(rallyIdx, stageIdx){
+  var rally=RALLIES[rallyIdx], stageDef=rally.stages[stageIdx];
+  document.getElementById("introRally").textContent = rally.name+" (Quick Stage)";
+  document.getElementById("introStage").textContent = "Stage: "+stageDef.name;
+  document.getElementById("introInfo").textContent = "Standalone run — no championship points.";
+  showScreen("stageintro");
+  document.getElementById("introBack").onclick=function(){ go("quick"); };
+  document.getElementById("introStart").onclick=function(){
+    buildStage(rallyIdx, stageIdx, true);
+    beginCountdown();
+  };
+}
+
+function beginCountdown(){
+  showScreen("__none__"); // hide all
+  document.getElementById("hud").classList.add("active");
+  document.getElementById("hudStageName").textContent = Stage.rallyName+" - "+Stage.name;
+  var cd = document.getElementById("countdown");
+  cd.style.display="block";
+  raceState="countdown";
+  var n=3;
+  cd.textContent = n;
+  var iv = setInterval(function(){
+    n--;
+    if(n>0){ cd.textContent=n; AudioSys.click(); }
+    else if(n===0){ cd.textContent="GO!"; AudioSys.click(); }
+    else{
+      clearInterval(iv);
+      cd.style.display="none";
+      raceState="running";
+    }
+  },700);
+}
+
+function restartStage(){
+  if(!Stage) return;
+  AudioSys.click();
+  buildStage(Stage.rallyIdx, Stage.stageIdx, Stage.isQuick);
+  beginCountdown();
+}
+function togglePause(){
+  if(raceState==="running"){ raceState="paused"; showScreen("pause"); }
+  else if(raceState==="paused"){ showScreen("__none__"); document.getElementById("hud").classList.add("active"); raceState="running"; }
+}
+document.getElementById("pauseBtn").addEventListener("click", togglePause);
+document.getElementById("pauseResume").addEventListener("click", togglePause);
+document.getElementById("pauseRestart").addEventListener("click", restartStage);
+document.getElementById("pauseQuit").addEventListener("click", function(){ AudioSys.click(); raceState="idle"; go("main"); });
+
+/* Special: showScreen("__none__") hides all screens but keeps HUD as separate element */
+var origShowScreen = showScreen;
+showScreen = function(id){
+  for(var i=0;i<Screens.length;i++) Screens[i].classList.remove("active");
+  if(id!=="__none__"){
+    var el = document.getElementById("screen-"+id);
+    if(el) el.classList.add("active");
+    document.getElementById("hud").classList.remove("active");
+  }
+};
+
+/* =========================================================================
+   PARTICLE POOL (dust)
+   ========================================================================= */
+var MAX_PARTICLES = 60;
+var particles = [];
+for(var pi=0;pi<MAX_PARTICLES;pi++) particles.push({active:false,x:0,y:0,z:0,vx:0,vy:0,vz:0,life:0});
+function spawnDust(x,y,z){
+  for(var i=0;i<MAX_PARTICLES;i++){
+    if(!particles[i].active){
+      var p=particles[i];
+      p.active=true; p.x=x;p.y=y;p.z=z;
+      p.vx=(Math.random()-0.5)*2; p.vy=Math.random()*1.5; p.vz=(Math.random()-0.5)*2;
+      p.life=0.6;
+      return;
+    }
+  }
+}
+function updateParticles(dt){
+  for(var i=0;i<MAX_PARTICLES;i++){
+    var p=particles[i];
+    if(!p.active) continue;
+    p.life -= dt;
+    if(p.life<=0){ p.active=false; continue; }
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; p.vy -= 3*dt;
+  }
+}
+var dustGL = makeGLMesh(buildBox(0.3,0.3,0.3,[0.7,0.65,0.5]));
+
+/* =========================================================================
+   CAR MESH
+   ========================================================================= */
+function buildCarMesh(color){
+  var body = buildBox(1.8,0.6,3.6,color);
+  var cabin = transformMesh(buildBox(1.4,0.5,1.6,[color[0]*0.6,color[1]*0.6,color[2]*0.6]), mat4Translate(0,0.55,-0.2));
+  var wheelColor=[0.05,0.05,0.05];
+  var w1 = transformMesh(buildBox(0.4,0.5,0.7,wheelColor), mat4Translate(1.0,-0.1,1.2));
+  var w2 = transformMesh(buildBox(0.4,0.5,0.7,wheelColor), mat4Translate(-1.0,-0.1,1.2));
+  var w3 = transformMesh(buildBox(0.4,0.5,0.7,wheelColor), mat4Translate(1.0,-0.1,-1.2));
+  var w4 = transformMesh(buildBox(0.4,0.5,0.7,wheelColor), mat4Translate(-1.0,-0.1,-1.2));
+  return mergeMeshes([body,cabin,w1,w2,w3,w4]);
+}
+var carGLCache = {};
+function getCarGL(specKey){
+  if(!carGLCache[specKey]) carGLCache[specKey] = makeGLMesh(buildCarMesh(CAR_SPECS[specKey].color));
+  return carGLCache[specKey];
+}
+
+/* =========================================================================
+   RENDER LOOP
+   ========================================================================= */
+var lastDustT=0;
+function renderFrame(){
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  if(!Stage || raceState==="idle") return;
+
+  var aspect = canvas.width/canvas.height;
+  var proj = mat4Perspective(60*Math.PI/180, aspect, 0.1, 500);
+
+  var camDist=9, camHeight=4.2;
+  var behind = { x:-Math.sin(Car.heading)*camDist, z:Math.cos(Car.heading)*camDist };
+  var eye=[Car.x+behind.x, camHeight, Car.z+behind.z];
+  var center=[Car.x, 0.8, Car.z];
+  var view = mat4LookAt(eye, center, [0,1,0]);
+  var vp = mat4Mul(proj, view);
+
+  gl.uniform3f(uLightDir, 0.4,-0.8,0.3);
+
+  // road
+  var identity = mat4Identity();
+  drawGLMesh(Stage.roadGL, vp, identity);
+
+  // scenery (instance draw)
+  var scenery = Stage.scenery;
+  for(var i=0;i<scenery.length;i++){
+    var s=scenery[i];
+    var model = mat4Translate(s.x, s.type==="tree"?1.5:0.5, s.z);
+    var mvp = mat4Mul(vp, model);
+    drawGLMesh(s.type==="tree"?Stage.treeGL:Stage.rockGL, mvp, model);
+  }
+
+  // car
+  var carGL = getCarGL(Car.spec===CAR_SPECS.hatch?"hatch":(Car.spec===CAR_SPECS.turbo?"turbo":"awd"));
+  var carModel = mat4Mul(mat4Translate(Car.x,0.5,Car.z), mat4RotY(Car.heading));
+  var carMvp = mat4Mul(vp, carModel);
+  drawGLMesh(carGL, carMvp, carModel);
+
+  // dust particles behind car when moving fast / offroad
+  if(raceState==="running" && Car.speed>10 && performance.now()-lastDustT>60){
+    lastDustT=performance.now();
+    var back = {x:Car.x-Math.sin(Car.heading)*2, z:Car.z+Math.cos(Car.heading)*2};
+    spawnDust(back.x,0.2,back.z);
+  }
+  for(i=0;i<MAX_PARTICLES;i++){
+    var p=particles[i];
+    if(!p.active) continue;
+    var pm = mat4Translate(p.x,p.y,p.z);
+    var pmvp = mat4Mul(vp, pm);
+    drawGLMesh(dustGL, pmvp, pm);
+  }
+}
+
+function updateHud(){
+  if(!Stage || raceState==="idle") return;
+  document.getElementById("hudTime").textContent = elapsedStageTime.toFixed(1);
+  document.getElementById("hudSpeed").textContent = Math.round(Math.abs(Car.speed)*3.2);
+  document.getElementById("dmgfill").style.width = Car.damage+"%";
+  document.getElementById("dmgfill").style.background = Car.damage>70?"#c33":(Car.damage>35?"#eb3":"#3c9");
+}
+
+/* =========================================================================
+   MAIN LOOP (fixed timestep physics, decoupled render)
+   ========================================================================= */
+function mainLoop(t){
+  if(!lastFrameT) lastFrameT=t;
+  var dt = Math.min(0.1, (t-lastFrameT)/1000);
+  lastFrameT = t;
+  physAccumulator += dt;
+  var steps=0;
+  while(physAccumulator >= PHYS_DT && steps<8){
+    stepPhysics(PHYS_DT);
+    updateParticles(PHYS_DT);
+    physAccumulator -= PHYS_DT;
+    steps++;
+  }
+  updateHud();
+  renderFrame();
+  requestAnimationFrame(mainLoop);
+}
+requestAnimationFrame(mainLoop);
+
+/* init settings from save */
+AudioSys.setVolume(Save.settings.volume);
+AudioSys.setMuted(Save.settings.muted);
+
+})();
+</script>
+</body>
+</html>
