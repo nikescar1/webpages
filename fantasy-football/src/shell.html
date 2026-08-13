@@ -1,0 +1,82 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Gridiron — a self-contained fantasy football league: live snake draft, real NFL production data, weekly matchups and a 3D trophy ceremony.">
+<title>Gridiron · Fantasy Football</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
+
+<!-- ===== styles ===== -->
+<style>/*__CSS__*/</style>
+
+<body>
+
+<!-- ===== auth / landing ===== -->
+<div id="gate" class="gate"></div>
+
+<!-- ===== app shell ===== -->
+<div id="app" style="display:none">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">🏈</div><span>Gridiron</span></div>
+    <div style="width:1px;height:26px;background:var(--line)"></div>
+    <div id="topbar-league"></div>
+    <div class="topbar-spacer"></div>
+    <div id="topbar-status" style="display:flex;gap:8px;align-items:center"></div>
+  </header>
+
+  <div class="shell">
+    <nav class="rail" id="rail"></nav>
+    <main class="main" id="main"></main>
+  </div>
+
+  <nav class="mobile-tabs" id="mobile-tabs"></nav>
+</div>
+
+<!-- ===== winner ceremony ===== -->
+<div id="ceremony">
+  <canvas id="cer-canvas"></canvas>
+  <div class="cer-ui">
+    <div class="cer-kicker" id="cer-kicker"></div>
+    <div class="cer-name" id="cer-name"></div>
+    <div class="cer-score" id="cer-score"></div>
+    <button class="btn btn-lg cer-close" id="cer-close">Close</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<!-- ===== three.js r160 (core UMD, inlined) ===== -->
+<script>/*__THREE__*/</script>
+
+<!-- ===== player pool: nflverse open data ===== -->
+<script>window.__POOL__=/*__POOL__*/;</script>
+
+<!-- ===== 3D scenes ===== -->
+<script>
+(function(){
+/*__SCENES__*/
+
+// WebGL is optional — the league is fully playable without it.
+var ok = (function(){ try { var c=document.createElement('canvas');
+  return !!(window.WebGLRenderingContext && (c.getContext('webgl2')||c.getContext('webgl'))); } catch(e){ return false; } })();
+
+window.__Ceremony__ = ok ? Ceremony : function(){ return { start:function(){}, stop:function(){} }; };
+window.__pickBurst = pickBurst;
+window.__hero__ = {
+  inst: null,
+  start: function(){
+    if (!ok) return;
+    var c = document.getElementById('gate-canvas');
+    if (!c) return;
+    if (this.inst && this.inst.canvas !== c) { this.inst.stop(); this.inst = null; }
+    if (!this.inst) this.inst = new HeroField(c);
+    try { this.inst.start(); } catch(e) { /* driver refused a context — no background */ }
+  },
+  stop: function(){ if (this.inst) this.inst.stop(); }
+};
+})();
+</script>
+
+<!-- ===== app ===== -->
+<script>
+/*__APP__*/
+</script>
