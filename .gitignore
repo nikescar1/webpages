@@ -1,1 +1,4 @@
 .claude/
+node_modules/
+.wrangler/
+fantasy-football/worker/.build/
