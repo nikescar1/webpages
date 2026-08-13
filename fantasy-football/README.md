@@ -9,17 +9,35 @@ optional Cloudflare Worker backend for shared multiplayer and live NFL scoring.
 
 ## Two ways to run it
 
-|                        | Local (no setup)                     | Shared (Cloudflare)                       |
-| ---------------------- | ------------------------------------ | ----------------------------------------- |
-| Setup                  | Open the file                        | `wrangler deploy`                         |
-| Opponents              | CPU managers                         | Real people, live                         |
-| Draft                  | Live snake draft vs bots             | Live snake draft, WebSocket-synced        |
-| Accounts               | None                                 | Email + password                          |
-| Weekly scoring         | Simulated from real 2025 averages    | **Real NFL box scores**                   |
-| Data leaves the device | Never                                | Only to your own Worker                   |
+|                        | Local (no setup)                          | Shared (Cloudflare)                  |
+| ---------------------- | ----------------------------------------- | ------------------------------------ |
+| Setup                  | Open the file                             | `wrangler deploy`                    |
+| Opponents              | CPU managers                              | Real people, live                    |
+| Draft                  | Live snake draft vs bots                  | Live snake draft, WebSocket-synced   |
+| Accounts               | None                                      | Email + password                     |
+| Weekly scoring         | **Replays the real 2025 season**, or sims | Live NFL box scores                  |
+| Playoffs               | Top 4, semis + final                      | Regular season                       |
+| Data leaves the device | Never                                     | Only to your own Worker              |
 
 The page works fully on its own — that is the point of the single file. The
 Worker upgrades it; it is not required.
+
+## Replaying a real season
+
+Pick **Replay the real 2025 season** at league creation (the default) and every
+week is scored from the actual 2025 box scores embedded in the page. Nothing is
+randomised: real bye weeks, real injuries, real 40-point Sundays. Draft
+Christian McCaffrey and you get exactly the season he had.
+
+A season runs **14 regular-season weeks, then a four-team playoff** — semifinals
+in week 15, the championship in week 16 — mapped onto the real NFL weeks of the
+same number. "Sim to end of season" plays the whole thing at once and crowns a
+champion with the trophy ceremony.
+
+For small leagues the round robin is shorter than 14 weeks, so the rotation
+repeats, which is what real leagues do. The other mode simulates results from
+each player's season average with position-appropriate variance, seeded so a
+given week always scores the same.
 
 ---
 
@@ -31,10 +49,10 @@ API key, no rate limit, no licensing problem.
 | What | Source |
 | --- | --- |
 | Draftable players, teams, headshots | `rosters/roster_2026.csv` |
-| Prior-season production | `stats_player/stats_player_week_2025.csv` |
+| Prior-season production, and the replayable season | `stats_player/stats_player_week_2025.csv` |
 | Live weekly box scores | `stats_player/stats_player_week_2026.csv` (appears at kickoff) |
 
-Two details worth knowing:
+Three details worth knowing:
 
 - **Rankings use value over replacement, not raw points.** Ranking by total
   points puts eight quarterbacks in the top fifteen. Replacement level is the
@@ -43,6 +61,11 @@ Two details worth knowing:
   last two rounds instead of round three.
 - **The scoring engine was verified against nflverse's own numbers** — 12,428
   player-weeks across 2024 and 2025, zero mismatches. See `worker/src/scoring.js`.
+  The page inlines that same file rather than reimplementing it, so a replayed
+  week scores identically in the browser and on the edge.
+- **nflverse spells Arizona `AZ` in roster files and `ARI` in stat files.** Left
+  unreconciled the Cardinals defense scores zero every week, so team codes are
+  normalised on ingest.
 
 Browsers cannot fetch nflverse directly (its release downloads send no CORS
 header), which is exactly why the standalone page embeds a player snapshot and
@@ -110,8 +133,10 @@ fantasy-football/
   │   ├── app.css              design tokens + all styling
   │   ├── three-scenes.js      trophy ceremony, hero field, pick burst
   │   ├── shell.html           page skeleton
-  │   └── pool.json            generated player data
+  │   ├── pool.json            generated player data
+  │   └── season.json          generated: a full real season, for replay mode
   ├── tools/build-pool.mjs     → regenerates pool.json from nflverse
+  ├── tools/build-season.mjs   → regenerates season.json from nflverse
   └── worker/                  → Cloudflare Worker
       ├── src/index.js         router, auth, CORS, cron
       ├── src/league.js        LeagueRoom DO — draft, lineups, scoring, WebSocket
@@ -140,6 +165,9 @@ node fantasy-football/build.mjs
   40KB per week rather than 147KB, which also keeps it under the 128KB
   Durable Object value limit.
 - **WebSocket hibernation** means an idle league between Sundays costs nothing.
+- **The embedded season is stored sparsely** — only the ~12% of stat fields that
+  are non-zero, which is 130KB instead of 287KB. Component stats are stored
+  rather than precomputed points, so a league's own scoring rules still apply.
 
 ---
 
