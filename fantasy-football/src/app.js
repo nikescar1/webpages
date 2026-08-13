@@ -66,26 +66,71 @@ const POOL = window.__POOL__;
 const PLAYERS = new Map(POOL.players.map((p) => [p.id, p]));
 const player = (id) => PLAYERS.get(id) || { id, n: 'Unknown', p: '??', t: '', ppg: 0, v: 0, r: 999 };
 
-const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
+/* ------------------------------------------------------- real season replay */
 
-const SLOT_DEFS = {
-  QB: ['QB'], RB: ['RB'], WR: ['WR'], TE: ['TE'],
-  FLEX: ['RB', 'WR', 'TE'], K: ['K'], DST: ['DST'],
-  BENCH: ['QB', 'RB', 'WR', 'TE', 'K', 'DST'],
-};
-const DEFAULT_ROSTER = { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 6 };
+const SEASON = window.__SEASON__ || null;
 
-function expandRoster(spec = DEFAULT_ROSTER) {
-  const order = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DST', 'BENCH'];
-  const out = [];
-  for (const kind of order) {
-    for (let i = 0; i < (spec[kind] || 0); i++) {
-      out.push({ id: `${kind}${i + 1}`, kind, starter: kind !== 'BENCH' });
+/** Season shape: 14 regular-season weeks, then a 4-team, 2-round playoff. */
+const REG_WEEKS = 14;
+const SEMI_WEEK = 15;
+const FINAL_WEEK = 16;
+const LAST_WEEK = FINAL_WEEK;
+
+/**
+ * Lazily inflate a week's sparse stat rows into lookup maps.
+ * Rows are [playerId, fieldIndex, value, fieldIndex, value, ...].
+ */
+const seasonCache = {};
+function seasonWeek(week) {
+  if (!SEASON) return null;
+  if (seasonCache[week]) return seasonCache[week];
+
+  const rows = SEASON.weeks[week];
+  const byPlayer = new Map();
+  if (rows) {
+    for (const rec of rows) {
+      const line = {};
+      for (let i = 1; i < rec.length; i += 2) line[SEASON.cols[rec[i]]] = rec[i + 1];
+      byPlayer.set(rec[0], line);
     }
   }
-  return out;
+
+  const byDst = new Map();
+  const d = SEASON.dst[week] || {};
+  for (const [team, vals] of Object.entries(d)) {
+    const line = {};
+    SEASON.dstCols.forEach((c, i) => (line[c] = vals[i]));
+    byDst.set(team, line);
+  }
+
+  seasonCache[week] = { byPlayer, byDst, byes: new Set(SEASON.byes[week] || []) };
+  return seasonCache[week];
 }
-const slotAccepts = (kind, pos) => (SLOT_DEFS[kind] || []).includes(pos);
+
+/** The real stat line a player posted that week, or null if he did not play. */
+function realLine(week, playerId) {
+  const wk = seasonWeek(week);
+  if (!wk) return null;
+  if (playerId.startsWith('DST_')) return wk.byDst.get(playerId.slice(4)) || null;
+  return wk.byPlayer.get(playerId) || null;
+}
+
+function onBye(week, playerId) {
+  const wk = seasonWeek(week);
+  if (!wk) return false;
+  const team = playerId.startsWith('DST_') ? playerId.slice(4) : player(playerId).t;
+  return wk.byes.has(team);
+}
+
+/** Map a league week onto a real NFL week (playoff weeks map straight through). */
+function nflWeek(week) {
+  return week;
+}
+
+const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
+
+// DEFAULT_ROSTER, expandRoster, slotAccepts, SCORING_PRESETS and scoreStatLine
+// come from the Worker's scoring module, inlined just above this script.
 
 const SCORING_LABELS = {
   standard: 'Standard (no PPR)',
@@ -138,18 +183,25 @@ const Local = {
   save(lg) { localStorage.setItem(this.key, JSON.stringify(lg)); },
   clear() { localStorage.removeItem(this.key); },
 
-  create({ name, teamName, managerName, teamCount, scoring, pickSeconds, roster }) {
+  create({ name, teamName, managerName, teamCount, scoring, pickSeconds, roster, dataMode }) {
+    // Replay uses the real season's results; sim rolls them from each player's
+    // average. Replay is only offered when the season data is actually present.
+    const mode = SEASON && dataMode !== 'sim' ? 'replay' : 'sim';
     const lg = {
       id: 'local', code: 'SOLO', name: name || 'My League',
       commissionerId: 'local-user',
       settings: {
-        season: POOL.season, scoring: scoring || 'half_ppr',
+        season: mode === 'replay' ? SEASON.season : POOL.season,
+        scoring: scoring || 'half_ppr',
+        rules: SCORING_PRESETS[scoring || 'half_ppr'],
         roster: roster || DEFAULT_ROSTER,
         teamCount: teamCount || 10, pickSeconds: pickSeconds || 45,
         rounds: expandRoster(roster || DEFAULT_ROSTER).length,
+        dataMode: mode,
       },
       teams: [], draft: { status: 'pre', order: [], picks: [], current: null, queues: {} },
       lineups: {}, schedule: null, results: {}, currentWeek: 1, chat: [],
+      playoffs: null, champion: null,
       local: true,
     };
 
@@ -213,7 +265,7 @@ const Local = {
     if (!lg.draft.current) {
       lg.draft.status = 'done';
       this.autoLineups(lg);
-      lg.schedule = buildSchedule(lg.teams.map((t) => t.id));
+      lg.schedule = buildSeasonSchedule(lg.teams.map((t) => t.id));
     }
     this.save(lg);
     return { ok: true, playerId: chosen };
@@ -283,51 +335,132 @@ const Local = {
     return Math.max(0, Math.round(pts * 10) / 10);
   },
 
+  /** Points for one player in one week, from real results or simulation. */
+  pointsFor(lg, week, playerId) {
+    if (lg.settings.dataMode !== 'replay') return this.simulate(lg, week, playerId);
+    const line = realLine(nflWeek(week), playerId);
+    if (!line) return 0;   // bye, inactive, or did nothing scorable
+    return scoreStatLine(line, lg.settings.rules).points;
+  },
+
+  /** The pairings for a week — regular-season schedule, or the playoff bracket. */
+  pairsFor(lg, week) {
+    if (week > REG_WEEKS) return (lg.playoffs && lg.playoffs.bracket[week]) || [];
+    return (lg.schedule && lg.schedule[week - 1]) || [];
+  },
+
   scoreWeek(lg, week) {
     const slots = expandRoster(lg.settings.roster);
     const starters = new Set(slots.filter((s) => s.starter).map((s) => s.id));
+    const pairs = this.pairsFor(lg, week);
+    // In the playoffs only the teams still alive post a score.
+    const alive = week > REG_WEEKS ? new Set(pairs.flat()) : null;
+
     const scores = {};
     for (const team of lg.teams) {
+      if (alive && !alive.has(team.id)) continue;
       const lineup = (lg.lineups[week] && lg.lineups[week][team.id]) || team.slots || {};
       let total = 0; const detail = [];
       for (const [slotId, pid] of Object.entries(lineup)) {
         if (!starters.has(slotId) || !pid) continue;
-        const pts = this.simulate(lg, week, pid);
+        const pts = this.pointsFor(lg, week, pid);
         total += pts;
-        detail.push({ slotId, playerId: pid, points: pts });
+        detail.push({ slotId, playerId: pid, points: pts, bye: lg.settings.dataMode === 'replay' && onBye(nflWeek(week), pid) });
       }
       scores[team.id] = { total: Math.round(total * 10) / 10, detail };
     }
-    const pairs = (lg.schedule && lg.schedule[week - 1]) || [];
+
     const matchups = pairs.map(([a, b]) => {
       const sa = scores[a]?.total || 0, sb = scores[b]?.total || 0;
       return { home: a, away: b, homePts: sa, awayPts: sb, winner: sa === sb ? null : (sa > sb ? a : b) };
     });
-    lg.results[week] = { scores, matchups, at: Date.now(), recorded: lg.results[week]?.recorded || false };
+    lg.results[week] = {
+      scores, matchups, at: Date.now(),
+      recorded: lg.results[week]?.recorded || false,
+      playoff: week > REG_WEEKS,
+    };
     this.save(lg);
     return lg.results[week];
+  },
+
+  /** Top four by record (points for breaks ties) meet in week 15. */
+  seedPlayoffs(lg) {
+    const ranked = [...lg.teams].sort((a, b) => {
+      const wa = a.wins + a.ties * 0.5, wb = b.wins + b.ties * 0.5;
+      return wb !== wa ? wb - wa : b.pf - a.pf;
+    });
+    const seeds = ranked.slice(0, Math.min(4, lg.teams.length)).map((t) => t.id);
+    const bracket = {};
+    if (seeds.length >= 4) bracket[SEMI_WEEK] = [[seeds[0], seeds[3]], [seeds[1], seeds[2]]];
+    else if (seeds.length >= 2) bracket[FINAL_WEEK] = [[seeds[0], seeds[1]]];
+    lg.playoffs = { seeds, bracket };
+    this.save(lg);
   },
 
   advanceWeek(lg, week) {
     const res = this.scoreWeek(lg, week);
     if (!res.recorded) {
-      for (const m of res.matchups) {
-        const h = lg.teams.find((t) => t.id === m.home);
-        const a = lg.teams.find((t) => t.id === m.away);
-        if (!h || !a) continue;
-        h.pf += m.homePts; h.pa += m.awayPts;
-        a.pf += m.awayPts; a.pa += m.homePts;
-        if (m.winner === h.id) { h.wins++; a.losses++; }
-        else if (m.winner === a.id) { a.wins++; h.losses++; }
-        else { h.ties++; a.ties++; }
+      // Playoff games decide who advances; they do not touch season records.
+      if (!res.playoff) {
+        for (const m of res.matchups) {
+          const h = lg.teams.find((t) => t.id === m.home);
+          const a = lg.teams.find((t) => t.id === m.away);
+          if (!h || !a) continue;
+          h.pf += m.homePts; h.pa += m.awayPts;
+          a.pf += m.awayPts; a.pa += m.homePts;
+          if (m.winner === h.id) { h.wins++; a.losses++; }
+          else if (m.winner === a.id) { a.wins++; h.losses++; }
+          else { h.ties++; a.ties++; }
+        }
       }
       res.recorded = true;
       lg.currentWeek = week + 1;
+
+      if (week === REG_WEEKS) {
+        this.seedPlayoffs(lg);
+      } else if (week === SEMI_WEEK && lg.playoffs) {
+        // A tie in a playoff game falls to the higher seed.
+        const advance = res.matchups.map((m) =>
+          m.winner || (lg.playoffs.seeds.indexOf(m.home) < lg.playoffs.seeds.indexOf(m.away) ? m.home : m.away));
+        if (advance.length === 2) lg.playoffs.bracket[FINAL_WEEK] = [[advance[0], advance[1]]];
+      } else if (week === FINAL_WEEK && lg.playoffs) {
+        const m = res.matchups[0];
+        if (m) {
+          lg.champion = m.winner
+            || (lg.playoffs.seeds.indexOf(m.home) < lg.playoffs.seeds.indexOf(m.away) ? m.home : m.away);
+        }
+      }
       this.save(lg);
     }
     return res;
   },
+
+  /** Play every remaining week in one go. Returns the weeks that were played. */
+  simulateSeason(lg) {
+    const played = [];
+    let guard = 0;
+    while (lg.currentWeek <= LAST_WEEK && guard++ < 40) {
+      const wk = lg.currentWeek;
+      if (wk > REG_WEEKS && !this.pairsFor(lg, wk).length) { lg.currentWeek++; continue; }
+      this.advanceWeek(lg, wk);
+      played.push(wk);
+    }
+    this.save(lg);
+    return played;
+  },
 };
+
+/**
+ * A 14-week regular season. A round robin is shorter than that for small
+ * leagues, so the rotation repeats — which is what real leagues do too.
+ */
+function buildSeasonSchedule(teamIds) {
+  const rr = buildSchedule(teamIds);
+  if (!rr.length) return [];
+  const out = [];
+  for (let w = 0; w < REG_WEEKS; w++) out.push(rr[w % rr.length]);
+  return out;
+}
 
 /** Circle-method round robin, mirroring the Worker's buildSchedule. */
 function buildSchedule(teamIds) {
@@ -447,10 +580,12 @@ const Act = {
       celebrateWeek(S.week);
       return r;
     }
-    Local.advanceWeek(S.league, S.week);
-    celebrateWeek(S.week);
-    S.week = S.league.currentWeek;
+    const played = S.week;
+    Local.advanceWeek(S.league, played);
+    S.week = Math.min(S.league.currentWeek, LAST_WEEK);
     render();
+    if (S.league.champion && played === FINAL_WEEK) celebrateChampion();
+    else celebrateWeek(played);
   },
 
   async refresh() {
@@ -570,6 +705,22 @@ function celebrateWeek(week) {
   });
 }
 
+/** End-of-season trophy for whoever wins the championship game. */
+function celebrateChampion() {
+  const lg = S.league;
+  const team = lg.teams.find((t) => t.id === lg.champion);
+  if (!team) return;
+  const final = lg.results[FINAL_WEEK];
+  const m = final?.matchups?.[0];
+  const score = m ? `${fmt1(Math.max(m.homePts, m.awayPts))} – ${fmt1(Math.min(m.homePts, m.awayPts))}` : '';
+  showCeremony({
+    kicker: `${lg.settings.season} Champion`,
+    name: team.name,
+    detail: `${team.wins}-${team.losses} regular season${score ? ` · won the final ${score}` : ''}${
+      team.id === S.myTeamId ? " · that's you" : ` · managed by ${team.owner}`}`,
+  });
+}
+
 function showCeremony({ kicker, name, detail }) {
   const wrap = $('#ceremony');
   $('#cer-kicker').textContent = kicker;
@@ -611,6 +762,9 @@ function render() {
     case 'standings': renderStandings(page); break;
     case 'league': renderLeagueInfo(page); break;
   }
+
+  const cup = $('#replay-cup');
+  if (cup) cup.onclick = () => celebrateChampion();
 }
 
 function renderTopbar() {
@@ -685,9 +839,16 @@ function renderGate() {
                 `<option value="${k}" ${k === 'half_ppr' ? 'selected' : ''}>${v}</option>`).join('')}</select>
             </div>
           </div>
+          ${SEASON ? `<div class="field"><label>Weekly results</label>
+            <select id="lg-data">
+              <option value="replay" selected>Replay the real ${SEASON.season} season</option>
+              <option value="sim">Simulate from season averages</option>
+            </select></div>` : ''}
           <button class="btn btn-primary btn-lg" id="create-local">Create league &amp; draft</button>
           <p class="tiny dim" style="margin:0;line-height:1.5">Plays entirely in your browser against CPU managers,
-            using real ${POOL.basis} NFL production for ${POOL.players.length} players. Nothing leaves this device.</p>
+            using real ${POOL.basis} NFL production for ${POOL.players.length} players.
+            ${SEASON ? `Replay mode scores every week from the actual ${SEASON.season} box scores — real byes, real injuries, real blow-ups.` : ''}
+            Nothing leaves this device.</p>
         </div>
 
         <div id="tab-cloud" class="stack" style="display:none">
@@ -727,6 +888,7 @@ function renderGate() {
       teamName: $('#lg-team').value.trim() || 'My Team',
       teamCount: Number($('#lg-count').value),
       scoring: $('#lg-scoring').value,
+      dataMode: $('#lg-data') ? $('#lg-data').value : 'replay',
     });
     S.league = lg; S.mode = 'local'; S.myTeamId = 'T0'; S.view = 'draft'; S.week = 1;
     render();
@@ -1358,10 +1520,11 @@ function wireLineupDnd(lineup, slots) {
 
 function weekPicker() {
   const lg = S.league;
-  const weeks = Math.max(lg.schedule?.length || 14, lg.currentWeek);
+  const weeks = isCloud() ? Math.max(lg.schedule?.length || 14, lg.currentWeek) : LAST_WEEK;
+  const label = (w) => (w === SEMI_WEEK ? 'Semifinals' : w === FINAL_WEEK ? 'Championship' : `Week ${w}`);
   return `<select id="week-sel" style="width:auto">
     ${Array.from({ length: weeks }, (_, i) => i + 1).map((w) =>
-      `<option value="${w}" ${w === S.week ? 'selected' : ''}>Week ${w}</option>`).join('')}
+      `<option value="${w}" ${w === S.week ? 'selected' : ''}>${isCloud() ? `Week ${w}` : label(w)}</option>`).join('')}
   </select>`;
 }
 
@@ -1375,17 +1538,23 @@ function renderMatchup(page) {
   }
 
   const res = lg.results[S.week];
-  const pairs = lg.schedule[S.week - 1] || [];
+  const pairs = isCloud() ? (lg.schedule[S.week - 1] || []) : Local.pairsFor(lg, S.week);
+  const roundName = S.week === SEMI_WEEK ? 'Semifinals' : S.week === FINAL_WEEK ? 'Championship' : `Week ${S.week}`;
+  const canSim = !isCloud() && lg.currentWeek <= LAST_WEEK;
 
   page.innerHTML = `
     <div class="page-head">
-      <h1>Week ${S.week}</h1>
-      <div class="sub">${res ? 'Final' : 'Not played yet'}</div>
+      <h1>${roundName}</h1>
+      <div class="sub">${S.week > REG_WEEKS ? 'Playoffs · ' : ''}${res?.recorded ? 'Final' : 'Not played yet'}${
+        lg.settings.dataMode === 'replay' ? ` · real ${lg.settings.season} results` : ''}</div>
       <div style="flex:1"></div>
       ${weekPicker()}
       ${isCommish() ? `<button class="btn ${res?.recorded ? '' : 'btn-primary'}" id="play-week">
-        ${res?.recorded ? 'Replay ceremony' : `Play week ${S.week}`}</button>` : ''}
+        ${res?.recorded ? 'Replay ceremony' : `Play ${S.week > REG_WEEKS ? roundName.toLowerCase() : 'week ' + S.week}`}</button>` : ''}
+      ${canSim ? '<button class="btn" id="sim-season">Sim to end of season ⏩</button>' : ''}
     </div>
+    ${!pairs.length && S.week > REG_WEEKS
+      ? `<div class="card" style="padding:20px" class="muted">The bracket is set after week ${REG_WEEKS}.</div>` : ''}
     <div id="matchups" style="display:flex;flex-direction:column;gap:12px"></div>`;
 
   $('#week-sel').onchange = (e) => { S.week = Number(e.target.value); render(); };
@@ -1395,6 +1564,19 @@ function renderMatchup(page) {
       if (res?.recorded) return celebrateWeek(S.week);
       btn.disabled = true;
       try { await Act.advanceWeek(); } catch (e) { toast(e.message, 'bad'); btn.disabled = false; }
+    };
+  }
+  const simBtn = $('#sim-season');
+  if (simBtn) {
+    simBtn.onclick = () => {
+      simBtn.disabled = true;
+      const played = Local.simulateSeason(S.league);
+      S.week = Math.min(S.league.currentWeek, LAST_WEEK);
+      render();
+      if (!played.length) return toast('Season already complete.', '');
+      // The champion gets the trophy; otherwise fall back to the last week.
+      if (S.league.champion) celebrateChampion();
+      else celebrateWeek(played[played.length - 1]);
     };
   }
 
@@ -1445,6 +1627,11 @@ function breakdown(aId, bId, res) {
   const slots = expandRoster(lg.settings.roster).filter((s) => s.starter);
   const get = (tid, slotId) => res.scores[tid]?.detail?.find((d) => d.slotId === slotId);
 
+  const nameCell = (d, p) => {
+    if (!p) return '<span class="dim">—</span>';
+    return `${esc(p.n)}${d && d.bye ? ' <span class="tiny dim">BYE</span>' : ''}`;
+  };
+
   return slots.map((s) => {
     const da = get(aId, s.id), db = get(bId, s.id);
     const pa = da ? player(da.playerId) : null;
@@ -1452,12 +1639,12 @@ function breakdown(aId, bId, res) {
     return `<div class="mrow">
       <div class="side">
         <span class="p num" style="color:${da && db && da.points > db.points ? 'var(--mint)' : 'var(--muted)'}">${da ? fmt1(da.points) : '–'}</span>
-        <span class="nm">${pa ? esc(pa.n) : '<span class="dim">—</span>'}</span>
+        <span class="nm">${nameCell(da, pa)}</span>
       </div>
       <div class="slot">${s.kind}</div>
       <div class="side right">
         <span class="p num" style="color:${da && db && db.points > da.points ? 'var(--mint)' : 'var(--muted)'}">${db ? fmt1(db.points) : '–'}</span>
-        <span class="nm">${pb ? esc(pb.n) : '<span class="dim">—</span>'}</span>
+        <span class="nm">${nameCell(db, pb)}</span>
       </div>
     </div>`;
   }).join('');
@@ -1473,15 +1660,21 @@ function renderStandings(page) {
     return b.pf - a.pf;
   });
 
+  const playoffCut = isCloud() ? 0 : Math.min(4, lg.teams.length);
+  const done = Math.min(lg.currentWeek - 1, REG_WEEKS);
+
   page.innerHTML = `
     <div class="page-head"><h1>Standings</h1>
-      <div class="sub">Through week ${Math.max(1, lg.currentWeek - 1)}</div></div>
+      <div class="sub">${done > 0 ? `Through ${done === REG_WEEKS ? 'the regular season' : 'week ' + done}` : 'Season not started'}${
+        playoffCut ? ` · top ${playoffCut} make the playoffs` : ''}</div></div>
+    ${lg.champion ? championBanner(lg) : ''}
     <div class="card" style="padding:6px 10px">
       <table class="std">
-        <thead><tr><th style="width:34px">#</th><th>Team</th><th>Rec</th><th>PF</th><th>PA</th><th>Diff</th></tr></thead>
+        <thead><tr><th style="width:54px">#</th><th>Team</th><th>Rec</th><th>PF</th><th>PA</th><th>Diff</th></tr></thead>
         <tbody>
-          ${teams.map((t, i) => `<tr>
-            <td class="dim num">${i + 1}</td>
+          ${teams.map((t, i) => `<tr${playoffCut && i === playoffCut ? ' style="border-top:2px solid var(--line-2)"' : ''}>
+            <td class="dim num" style="white-space:nowrap">${i + 1}${
+              playoffCut && i < playoffCut ? '<span style="color:var(--gold)" title="Playoff berth"> ●</span>' : ''}</td>
             <td><div class="tm"><div class="swatch" style="background:${esc(t.color)}"></div>
               <div><div>${esc(t.name)}${t.id === S.myTeamId ? ' <span class="tiny" style="color:var(--mint)">you</span>' : ''}</div>
               <div class="tiny dim">${esc(t.owner)}</div></div></div></td>
@@ -1495,6 +1688,58 @@ function renderStandings(page) {
     </div>`;
 }
 
+/** Playoff bracket: semifinals feeding the championship game. */
+function bracketCard(lg) {
+  const name = (id) => lg.teams.find((t) => t.id === id);
+  const seedOf = (id) => lg.playoffs.seeds.indexOf(id) + 1;
+
+  const round = (week, title) => {
+    const pairs = lg.playoffs.bracket[week] || [];
+    if (!pairs.length) return '';
+    const res = lg.results[week];
+    return `<div style="flex:1;min-width:190px">
+      <div class="tiny dim" style="letter-spacing:.11em;text-transform:uppercase;font-weight:800;margin-bottom:8px">${title}</div>
+      ${pairs.map(([a, b]) => {
+        const m = res?.matchups?.find((x) => x.home === a && x.away === b);
+        const row = (id, pts, won) => `<div class="slot-row" style="${won ? 'background:rgba(255,197,49,.10)' : ''}">
+          <div class="slot-tag">${seedOf(id) || '–'}</div>
+          <div style="min-width:0"><div class="nm" style="${won ? 'font-weight:800' : ''}">${esc(name(id)?.name || 'TBD')}</div></div>
+          <div class="num" style="font-weight:700;color:${won ? 'var(--gold)' : 'var(--muted)'}">${pts != null ? fmt1(pts) : '–'}</div>
+        </div>`;
+        return `<div style="margin-bottom:10px">
+          ${row(a, m?.homePts, m && m.winner === a)}
+          ${row(b, m?.awayPts, m && m.winner === b)}
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
+  return `<div class="card" style="padding:18px;margin-bottom:14px">
+    <h3 style="margin:0 0 12px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Playoff bracket</h3>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      ${round(SEMI_WEEK, 'Semifinals')}
+      ${round(FINAL_WEEK, 'Championship')}
+    </div>
+  </div>`;
+}
+
+/** Gold banner announcing the champion, reused on standings and league pages. */
+function championBanner(lg) {
+  const t = lg.teams.find((x) => x.id === lg.champion);
+  if (!t) return '';
+  return `<div class="card" style="padding:18px;margin-bottom:14px;display:flex;align-items:center;gap:16px;
+      border-color:rgba(255,197,49,.4);background:linear-gradient(100deg,rgba(255,197,49,.12),transparent 60%)">
+    <div style="font-size:34px">🏆</div>
+    <div style="flex:1;min-width:0">
+      <div class="tiny" style="letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--gold)">
+        ${lg.settings.season} Champion</div>
+      <div style="font-size:21px;font-weight:800;letter-spacing:-.025em">${esc(t.name)}</div>
+      <div class="tiny dim">${t.wins}-${t.losses}${t.ties ? '-' + t.ties : ''} · ${fmt1(t.pf)} points for</div>
+    </div>
+    <button class="btn btn-sm" id="replay-cup">Replay ceremony</button>
+  </div>`;
+}
+
 /* -------------------------------------------------------------- league view */
 
 function renderLeagueInfo(page) {
@@ -1503,7 +1748,11 @@ function renderLeagueInfo(page) {
 
   page.innerHTML = `
     <div class="page-head"><h1>${esc(lg.name)}</h1>
-      <div class="sub">${esc(SCORING_LABELS[lg.settings.scoring])} · ${lg.settings.rounds} rounds</div></div>
+      <div class="sub">${esc(SCORING_LABELS[lg.settings.scoring])} · ${lg.settings.rounds} rounds${
+        lg.settings.dataMode === 'replay' ? ` · replaying ${lg.settings.season}` : ''}</div></div>
+
+    ${lg.champion ? championBanner(lg) : ''}
+    ${lg.playoffs ? bracketCard(lg) : ''}
 
     ${isCloud() ? `<div class="card" style="padding:18px;margin-bottom:14px">
       <div class="tiny dim" style="letter-spacing:.1em;text-transform:uppercase;font-weight:800">Invite code</div>
@@ -1511,15 +1760,18 @@ function renderLeagueInfo(page) {
     </div>` : ''}
 
     ${weeksPlayed.length ? `<div class="card" style="padding:18px;margin-bottom:14px">
-      <h3 style="margin:0 0 12px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Weekly high scores</h3>
+      <h3 style="margin:0 0 4px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Weekly high scores</h3>
+      <p class="tiny dim" style="margin:0 0 10px">Tap any week to replay its ceremony.</p>
       ${weeksPlayed.map(([w, r]) => {
-        let best = null;
-        for (const [tid, sc] of Object.entries(r.scores)) if (!best || sc.total > best.t) best = { id: tid, t: sc.total };
+        const totals = Object.entries(r.scores).map(([id, sc]) => ({ id, t: sc.total })).sort((a, b) => b.t - a.t);
+        const best = totals[0];
         const team = lg.teams.find((t) => t.id === best?.id);
+        const margin = totals[1] ? best.t - totals[1].t : 0;
+        const label = w > REG_WEEKS ? (Number(w) === SEMI_WEEK ? 'SF' : 'F') : 'W' + w;
         return `<div class="slot-row" style="cursor:pointer" data-week="${w}">
-          <div class="slot-tag">W${w}</div>
+          <div class="slot-tag">${label}</div>
           <div style="min-width:0"><div class="nm">${esc(team?.name || '')}</div>
-            <div class="sub">tap to replay the ceremony</div></div>
+            <div class="sub">${esc(team?.owner || '')}${margin > 0 ? ` · +${fmt1(margin)} over the field` : ''}</div></div>
           <div class="num" style="font-weight:800;color:var(--gold)">${fmt1(best?.t || 0)}</div>
         </div>`;
       }).join('')}
@@ -1543,7 +1795,11 @@ function renderLeagueInfo(page) {
         valued on their ${POOL.basis} per-game production above replacement at each position.
         ${isCloud()
           ? 'Weekly scores are pulled from real NFL box scores by your Cloudflare Worker.'
-          : 'This local league simulates weekly results from each player\'s real ' + POOL.basis + ' averages. Deploy the Worker for live NFL scoring and shared multiplayer.'}
+          : lg.settings.dataMode === 'replay'
+            ? `Every week is scored from the actual ${lg.settings.season} box scores embedded in this page —
+               real bye weeks, real injuries, real 40-point outbursts. Nothing is randomised.`
+            : `This league rolls weekly results from each player's real ${POOL.basis} averages with
+               position-appropriate variance. Pick "replay" at league creation to use real box scores instead.`}
       </p>
       <button class="btn btn-sm" id="leave">${isCloud() ? 'Leave league' : 'Delete local league'}</button>
     </div>`;

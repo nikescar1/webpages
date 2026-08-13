@@ -28,6 +28,16 @@ export const STAT_COLS = [
 
 const FANTASY_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K'];
 
+/**
+ * nflverse spells Arizona `AZ` in the roster files and `ARI` in the stats
+ * files. Left unreconciled, the Cardinals defense silently scores zero every
+ * week, so every team code is normalised to the roster spelling on ingest.
+ */
+const TEAM_ALIASES = { ARI: 'AZ' };
+export function normalizeTeam(t) {
+  return TEAM_ALIASES[t] || t;
+}
+
 /** Rehydrate a compact positional row back into a named object for scoring. */
 export function inflate(row) {
   const o = { player_id: row[0], position: row[1], team: row[2] };
@@ -229,7 +239,8 @@ export class StatsCache {
 
       const id = c[iId];
       const week = c[iWk];
-      const rec = [id, c[iPos], c[iTeam], ...vals];
+      const team = normalizeTeam(c[iTeam]);
+      const rec = [id, c[iPos], team, ...vals];
 
       if (!byWeek.has(week)) byWeek.set(week, []);
       byWeek.get(week).push(rec);
@@ -237,7 +248,7 @@ export class StatsCache {
       // Accumulate season totals for draft rankings.
       let t = totals.get(id);
       if (!t) {
-        t = { id, name: c[iName], pos: c[iPos], team: c[iTeam], g: 0, v: new Array(statIx.length).fill(0) };
+        t = { id, name: c[iName], pos: c[iPos], team, g: 0, v: new Array(statIx.length).fill(0) };
         totals.set(id, t);
       }
       t.g++;

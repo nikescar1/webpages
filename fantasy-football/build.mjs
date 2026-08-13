@@ -20,7 +20,17 @@ const OUT = path.join(here, '..', 'fantasy-football.html');
 const css = src('app.css');
 const three = src('three.min.js');
 const pool = src('pool.json');
+const season = src('season.json');
 const app = src('app.js');
+
+// The scoring rules are shared with the Worker rather than reimplemented, so a
+// replayed week scores identically whether the maths runs here or on the edge.
+// Strip the module wrapper and supply the one helper it imports.
+const scoring =
+  'function num(v){ return (v===undefined||v===null||v===""||v==="NA") ? 0 : (Number.isFinite(Number(v)) ? Number(v) : 0); }\n'
+  + src('../worker/src/scoring.js')
+    .replace(/^import[^;]*;\s*$/gm, '')
+    .replace(/^export\s+/gm, '');
 
 // three-scenes.js is authored as an ES module for editing; the page inlines it
 // inside an IIFE, so drop the export keywords.
@@ -37,6 +47,8 @@ const put = (token, value) => {
 put('CSS', css);
 put('THREE', three);
 put('POOL', pool);
+put('SEASON', season);
+put('SCORING', scoring);
 put('SCENES', scenes);
 put('APP', app);
 
@@ -60,4 +72,4 @@ fs.writeFileSync(OUT, banner + html);
 
 const kb = (n) => (n / 1024).toFixed(1) + 'KB';
 console.log(`wrote ${path.relative(process.cwd(), OUT)}  ${kb(fs.statSync(OUT).size)}`);
-console.log(`  three.js ${kb(three.length)} · pool ${kb(pool.length)} · app ${kb(app.length)} · scenes ${kb(scenes.length)} · css ${kb(css.length)}`);
+console.log(`  three.js ${kb(three.length)} · pool ${kb(pool.length)} · season ${kb(season.length)} · app ${kb(app.length)} · scenes ${kb(scenes.length)} · scoring ${kb(scoring.length)} · css ${kb(css.length)}`);
