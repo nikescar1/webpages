@@ -369,6 +369,15 @@
     content: ' ✦';
     color: var(--c5);
   }
+  /* Tappable name (locked day + word data available) */
+  .lb-name-tap {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+  }
+  .lb-name-tap:hover { color: var(--c8); }
+  .lb-name-tap:active { opacity: 0.7; }
   .lb-score {
     color: var(--ink);
     font-family: 'Nunito', sans-serif;
@@ -384,6 +393,28 @@
     text-transform: uppercase;
     padding: 4px 0;
   }
+
+  /* Read-only board replay modal (Feature 1) */
+  .replay-grid {
+    display: grid;
+    gap: 3px;
+    width: 100%; max-width: 300px;
+    aspect-ratio: 1;
+    margin: 14px auto 8px;
+  }
+  .replay-grid .cell {
+    border-width: 2px;
+    border-radius: 7px;
+    box-shadow: 1.5px 1.5px 0 0 var(--shadow-color);
+  }
+  .replay-grid .cell .letter { font-size: clamp(11px, 3.6vw, 17px); }
+  .replay-words {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    justify-content: center;
+    max-height: 116px; overflow-y: auto;
+    margin-top: 4px;
+  }
+  .replay-words::-webkit-scrollbar { width: 0; }
   .lb-more {
     font-family: 'Nunito', sans-serif;
     font-weight: 800;
@@ -2395,6 +2426,21 @@
   </div>
 </div>
 
+<!-- ── BOARD REPLAY MODAL (Feature 1: view a past locked day's board) ── -->
+<div class="modal-overlay" id="replayModal">
+  <div class="modal">
+    <h2 id="replayName">—</h2>
+    <div class="modal-sub" id="replaySub"></div>
+    <div class="final-score" id="replayScore">0</div>
+    <div class="final-detail" id="replayWordCount">0 words found</div>
+    <div class="replay-grid" id="replayGrid"></div>
+    <div class="replay-words" id="replayWords"></div>
+    <div class="btn-row">
+      <button class="btn btn-submit" id="replayCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TUTORIAL MODAL ── -->
 <div class="modal-overlay" id="tutorialModal">
   <div class="modal">
@@ -2553,6 +2599,16 @@ function formatDateLong(key) {
 
 function dailySeed(dateKey, difficulty) {
   return hashStr(`gridword|${dateKey}|${difficulty}`);
+}
+
+// A daily puzzle is "locked" once its date is over in EVERY timezone, so
+// revealing boards can't help anyone still playing it live. The last zone to
+// finish a date is UTC-12 (Anywhere-on-Earth): it reaches the end of date D
+// at (D+1) 12:00 UTC — i.e. 36 hours after D 00:00 UTC.
+function isDailyLocked(dateKey) {
+  const midnightUTC = Date.parse(dateKey + 'T00:00:00Z');
+  if (isNaN(midnightUTC)) return false;
+  return Date.now() >= midnightUTC + 36 * 60 * 60 * 1000;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2811,15 +2867,26 @@ function renderHomeLeaderboard() {
       if ((list[i].n || '').toUpperCase() === myName) { myIdx = i; break; }
     }
   }
+  // Names become tappable to replay that player's board — but only once the
+  // day is locked worldwide, and only when the entry carries the player's
+  // found words (entry.w). Today's backend returns just {n, s}, so this stays
+  // dormant until the leaderboard stores per-entry words.
+  const locked = isDailyLocked(dateKey);
   const appendRow = (entry, rank) => {
     const isYou = myName && (entry.n || '').toUpperCase() === myName;
     const row = document.createElement('div');
     row.className = 'lb-row' + (isYou ? ' is-you' : '');
     const name = (entry.n || '').toUpperCase();
+    const canReplay = locked && Array.isArray(entry.w) && entry.w.length > 0;
+    const nameCls = 'lb-name' + (isYou ? ' is-you' : '') + (canReplay ? ' lb-name-tap' : '');
     row.innerHTML =
       `<span class="lb-rank">#${rank}</span>` +
-      `<span class="lb-name${isYou ? ' is-you' : ''}">${name}</span>` +
+      `<span class="${nameCls}">${name}</span>` +
       `<span class="lb-score">${entry.s}</span>`;
+    if (canReplay) {
+      row.querySelector('.lb-name').addEventListener('click', () =>
+        openBoardReplay(dateKey, DAILY_DIFF, name, entry.w, entry.s));
+    }
     listEl.appendChild(row);
   };
   const appendGap = () => {
@@ -2877,6 +2944,92 @@ document.getElementById('homeLbNextBtn').onclick = () => {
   lbHomeState.dateKey = t;
   renderHomeLeaderboard();
 };
+
+// ── Read-only board replay (Feature 1) ─────────────────────────
+// Trace a word onto an arbitrary grid without touching live game state —
+// a self-contained version of firstPathForWord() that takes the grid as
+// arguments. Returns the cell indices of the first traceable path, or null.
+function tracePathOnGrid(word, g, size) {
+  word = String(word).toLowerCase();
+  const n = size * size;
+  const visited = new Uint8Array(n);
+  const path = [];
+  function dfs(idx, pos) {
+    path.push(idx);
+    if (pos === word.length) return true;
+    for (const nb of getAdj(idx, size)) {
+      if (visited[nb] || g[nb] !== word[pos]) continue;
+      visited[nb] = 1;
+      if (dfs(nb, pos + 1)) return true;
+      visited[nb] = 0;
+    }
+    path.pop();
+    return false;
+  }
+  for (let i = 0; i < n; i++) {
+    if (g[i] !== word[0]) continue;
+    visited[i] = 1;
+    if (dfs(i, 1)) return path.slice();
+    visited[i] = 0;
+    path.length = 0;
+  }
+  return null;
+}
+
+// Rebuild the (deterministic) daily board for a past date and paint the given
+// player's found words onto it, read-only. The displayed score is the
+// authoritative leaderboard value; the coloring is reconstructed by replaying
+// the words (path choice can differ from the player's, which only affects
+// which equal-length tiles are shaded, not the score shown).
+function openBoardReplay(dateKey, diff, name, words, score) {
+  const size = 8;   // daily boards are always 8×8
+  const g = generateGrid(size, mulberry32(dailySeed(dateKey, diff)), diff);
+  const n = size * size;
+  const cellScore = new Array(n).fill(0);
+  const list = Array.isArray(words) ? words : [];
+  for (const w of list) {
+    const p = tracePathOnGrid(w, g, size);
+    if (!p) continue;
+    for (const idx of p) cellScore[idx] = Math.max(cellScore[idx], String(w).length);
+  }
+
+  const gridEl2 = document.getElementById('replayGrid');
+  gridEl2.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  gridEl2.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell' + (cellScore[i] > 0 ? ' has-score' : '');
+    if (cellScore[i] > 0) c.dataset.score = String(cellScore[i]);
+    c.innerHTML = `<span class="letter">${(g[i] || '').toUpperCase()}</span>`;
+    gridEl2.appendChild(c);
+  }
+
+  document.getElementById('replayName').textContent = name;
+  document.getElementById('replaySub').textContent = formatDateLong(dateKey);
+  document.getElementById('replayScore').textContent = score;
+  document.getElementById('replayWordCount').textContent =
+    `${list.length} word${list.length !== 1 ? 's' : ''} found`;
+
+  const wl = document.getElementById('replayWords');
+  wl.innerHTML = '';
+  for (const w of [...list].sort((a, b) => b.length - a.length)) {
+    const tag = document.createElement('span');
+    tag.className = 'found-tag';
+    tag.setAttribute('data-len', String(String(w).length));
+    tag.textContent = String(w).toUpperCase();
+    wl.appendChild(tag);
+  }
+
+  document.getElementById('replayModal').classList.add('show');
+}
+
+document.getElementById('replayCloseBtn').onclick = () =>
+  document.getElementById('replayModal').classList.remove('show');
+document.getElementById('replayModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('replayModal')) {
+    document.getElementById('replayModal').classList.remove('show');
+  }
+});
 
 // ══════════════════════════════════════════════════════════════
 // GAME MODE STATE
