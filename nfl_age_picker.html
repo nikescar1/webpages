@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NFL Age Picker</title>
+<style>
+  :root{color-scheme:dark;--bg:#0b1020;--panel:#121a2d;--panel2:#18233b;--line:#2a3858;--text:#edf3ff;--muted:#9fb0cf;--accent:#68d391;--warn:#f6c453;--loss:#ff8a8a}
+  *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at top,#172545 0,#0b1020 42%);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1180px;margin:auto;padding:24px}.top{display:flex;gap:18px;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
+  h1{margin:0;font-size:clamp(28px,5vw,46px);letter-spacing:-.04em}.sub{color:var(--muted);max-width:760px;margin-top:6px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.controls button,.controls select{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:9px 12px;font-weight:700}.controls button{cursor:pointer}.controls button:hover{background:var(--panel2)}
+  .status{display:flex;gap:10px;align-items:center;margin:12px 0 18px;color:var(--muted)}.dot{width:9px;height:9px;border-radius:50%;background:var(--warn)}.dot.ok{background:var(--accent)}.dot.err{background:var(--loss)}
+  .summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 18px}.stat{background:rgba(18,26,45,.85);border:1px solid var(--line);border-radius:14px;padding:14px}.stat b{display:block;font-size:25px}.stat span{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+  .games{display:grid;gap:12px}.game{background:linear-gradient(180deg,rgba(24,35,59,.96),rgba(18,26,45,.96));border:1px solid var(--line);border-radius:16px;overflow:hidden}.gamehead{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.match{display:grid;grid-template-columns:1fr 90px 1fr;align-items:center;gap:14px;padding:16px}.team{display:flex;gap:12px;align-items:center;min-width:0}.team.right{justify-content:flex-end;text-align:right}.logo{width:44px;height:44px;object-fit:contain}.name{font-size:18px;font-weight:850}.meta{color:var(--muted);font-size:13px}.vs{text-align:center;color:var(--muted);font-weight:800}.pick{margin:0 14px 14px;padding:12px 14px;border-radius:12px;background:#0d2c20;border:1px solid #285f47}.pick strong{color:#9ff1bf}.reason{color:#c7d2e8;margin-top:4px}.final{color:#d6dfff}.empty{padding:28px;background:var(--panel);border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
+  details{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}summary{cursor:pointer;font-weight:800}.rules{color:var(--muted)}code{color:#d7e5ff}
+  @media(max-width:760px){.summary{grid-template-columns:1fr 1fr}.match{grid-template-columns:1fr 38px 1fr;padding:14px 10px;gap:8px}.logo{width:34px;height:34px}.name{font-size:15px}.meta{font-size:11px}.gamehead{font-size:11px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>NFL Age Picker</h1>
+      <div class="sub">Fetches the NFL's current week and selects the team with the older starting-lineup median age. Ties are broken by the eldest coach, then coaching-staff age metrics.</div>
+    </div>
+    <div class="controls">
+      <button id="prev">◀ Week</button>
+      <select id="week"></select>
+      <button id="next">Week ▶</button>
+      <button id="refresh">Refresh</button>
+    </div>
+  </div>
+
+  <div class="status"><span id="dot" class="dot"></span><span id="status">Loading current NFL week…</span></div>
+  <div class="summary">
+    <div class="stat"><b id="season">—</b><span>Season</span></div>
+    <div class="stat"><b id="weekNo">—</b><span>Week</span></div>
+    <div class="stat"><b id="gameCount">—</b><span>Games</span></div>
+    <div class="stat"><b id="tieCount">—</b><span>Median ties</span></div>
+  </div>
+  <main id="games" class="games"></main>
+
+  <details>
+    <summary>Prediction rules & embedded age data</summary>
+    <div class="rules">
+      <p><b>Primary:</b> higher starter median age.</p>
+      <p><b>Ties:</b> eldest coach on the four-person staff → coaching-staff median → head coach age → second-oldest coach → third-oldest coach → fourth-oldest coach → alphabetical team name (last-resort deterministic fallback).</p>
+      <p>The embedded snapshot uses starter median = offense + defense + K + P + KR + PR, counting a player once if they fill multiple roles. Coaching staff = HC, OC, DC and STC. Ages are the supplied Sept. 9, 2026 snapshot.</p>
+      <p>Schedule source at runtime: ESPN's public NFL scoreboard JSON endpoint. No framework or build step is required.</p>
+    </div>
+  </details>
+</div>
+<script>
+'use strict';
+
+const TEAM_DATA = {
+  "Arizona Cardinals":       {starter:27.0, coachMedian:38.5, coaches:{HC:39,OC:46,DC:33,STC:38}},
+  "Atlanta Falcons":         {starter:27.0, coachMedian:46.5, coaches:{HC:44,OC:34,DC:49,STC:49}},
+  "Baltimore Ravens":        {starter:26.0, coachMedian:41.0, coaches:{HC:43,OC:30,DC:46,STC:39}},
+  "Buffalo Bills":           {starter:26.0, coachMedian:45.5, coaches:{HC:36,OC:54,DC:43,STC:48}},
+  "Carolina Panthers":       {starter:26.5, coachMedian:44.5, coaches:{HC:45,OC:34,DC:45,STC:44}},
+  "Chicago Bears":           {starter:28.5, coachMedian:42.5, coaches:{HC:40,OC:38,DC:53,STC:45}},
+  "Cincinnati Bengals":      {starter:26.5, coachMedian:48.0, coaches:{HC:43,OC:39,DC:57,STC:53}},
+  "Cleveland Browns":        {starter:26.0, coachMedian:43.0, coaches:{HC:60,OC:33,DC:44,STC:42}},
+  "Dallas Cowboys":          {starter:27.0, coachMedian:45.5, coaches:{HC:52,OC:43,DC:34,STC:48}},
+  "Denver Broncos":          {starter:27.5, coachMedian:54.5, coaches:{HC:62,OC:31,DC:53,STC:56}},
+  "Detroit Lions":           {starter:26.0, coachMedian:44.5, coaches:{HC:50,OC:39,DC:38,STC:52}},
+  "Green Bay Packers":       {starter:26.0, coachMedian:43.0, coaches:{HC:46,OC:43,DC:43,STC:39}},
+  "Houston Texans":          {starter:26.0, coachMedian:42.5, coaches:{HC:42,OC:43,DC:50,STC:39}},
+  "Indianapolis Colts":      {starter:27.0, coachMedian:41.5, coaches:{HC:41,OC:42,DC:60,STC:39}},
+  "Jacksonville Jaguars":    {starter:27.0, coachMedian:42.0, coaches:{HC:40,OC:30,DC:44,STC:44}},
+  "Kansas City Chiefs":      {starter:26.0, coachMedian:65.0, coaches:{HC:68,OC:57,DC:66,STC:64}},
+  "Las Vegas Raiders":       {starter:26.0, coachMedian:40.0, coaches:{HC:39,OC:38,DC:41,STC:61}},
+  "Los Angeles Chargers":    {starter:27.0, coachMedian:44.5, coaches:{HC:62,OC:43,DC:34,STC:46}},
+  "Los Angeles Rams":        {starter:27.0, coachMedian:40.0, coaches:{HC:40,OC:35,DC:40,STC:43}},
+  "Miami Dolphins":          {starter:25.0, coachMedian:43.0, coaches:{HC:47,OC:39,DC:33,STC:55}},
+  "Minnesota Vikings":       {starter:28.0, coachMedian:43.0, coaches:{HC:41,OC:47,DC:45,STC:36}},
+  "New England Patriots":    {starter:27.0, coachMedian:44.0, coaches:{HC:51,OC:50,DC:38,STC:37}},
+  "New Orleans Saints":      {starter:27.0, coachMedian:46.0, coaches:{HC:38,OC:55,DC:43,STC:49}},
+  "New York Giants":         {starter:26.0, coachMedian:46.0, coaches:{HC:63,OC:48,DC:44,STC:41}},
+  "New York Jets":           {starter:26.0, coachMedian:45.5, coaches:{HC:54,OC:64,DC:37,STC:36}},
+  "Philadelphia Eagles":     {starter:27.0, coachMedian:40.0, coaches:{HC:45,OC:34,DC:68,STC:35}},
+  "Pittsburgh Steelers":     {starter:27.0, coachMedian:56.0, coaches:{HC:62,OC:53,DC:47,STC:59}},
+  "San Francisco 49ers":     {starter:28.0, coachMedian:48.0, coaches:{HC:46,OC:37,DC:50,STC:55}},
+  "Seattle Seahawks":        {starter:27.0, coachMedian:42.5, coaches:{HC:39,OC:46,DC:47,STC:37}},
+  "Tampa Bay Buccaneers":    {starter:27.0, coachMedian:62.0, coaches:{HC:62,OC:39,DC:62,STC:72}},
+  "Tennessee Titans":        {starter:27.0, coachMedian:51.5, coaches:{HC:47,OC:51,DC:60,STC:52}},
+  "Washington Commanders":   {starter:27.0, coachMedian:49.0, coaches:{HC:55,OC:31,DC:47,STC:51}}
+};
+
+const API = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+let seasonYear = null, seasonType = 2, currentWeek = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+
+function staffSorted(d){ return Object.values(d.coaches).slice().sort((a,b)=>b-a); }
+
+function chooseWinner(nameA,nameB){
+  const a=TEAM_DATA[nameA], b=TEAM_DATA[nameB];
+  if(!a || !b) return {winner:null, reason:'Missing embedded age data for one or both teams.'};
+  const checks = [
+    ['starter median age', a.starter, b.starter],
+    ['eldest coach', staffSorted(a)[0], staffSorted(b)[0]],
+    ['coaching-staff median age', a.coachMedian, b.coachMedian],
+    ['head coach age', a.coaches.HC, b.coaches.HC],
+    ['second-oldest coach', staffSorted(a)[1], staffSorted(b)[1]],
+    ['third-oldest coach', staffSorted(a)[2], staffSorted(b)[2]],
+    ['fourth-oldest coach', staffSorted(a)[3], staffSorted(b)[3]]
+  ];
+  for(const [label,av,bv] of checks){
+    if(av!==bv){
+      const winner = av>bv ? nameA : nameB;
+      return {winner, reason:`${label}: ${av} vs ${bv}`, primaryTie:a.starter===b.starter};
+    }
+  }
+  const winner=[nameA,nameB].sort()[0];
+  return {winner, reason:'all numeric tie-breakers equal; alphabetical fallback', primaryTie:true};
+}
+
+function fmtTime(iso){
+  try{return new Intl.DateTimeFormat(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(iso));}
+  catch{return iso}
+}
+
+function render(data){
+  const events=data.events||[];
+  let ties=0;
+  const html=events.map(ev=>{
+    const comp=ev.competitions?.[0]; if(!comp) return '';
+    const home=comp.competitors.find(x=>x.homeAway==='home');
+    const away=comp.competitors.find(x=>x.homeAway==='away');
+    if(!home||!away) return '';
+    const hn=home.team.displayName, an=away.team.displayName;
+    const h=TEAM_DATA[hn], a=TEAM_DATA[an];
+    const pick=chooseWinner(an,hn); if(pick.primaryTie) ties++;
+    const state=comp.status?.type?.state;
+    const finalText=state==='post' ? `Final: ${away.score}–${home.score}` : comp.status?.type?.shortDetail || '';
+    const winnerSide = pick.winner===an ? 'away' : pick.winner===hn ? 'home' : '';
+    return `<article class="game">
+      <div class="gamehead"><span>${esc(fmtTime(ev.date))}</span><span>${esc(finalText)}</span></div>
+      <div class="match">
+        <div class="team">
+          <img class="logo" src="${esc(away.team.logo||'')}" alt="" />
+          <div><div class="name">${esc(an)} ${winnerSide==='away'?'✓':''}</div><div class="meta">Starter median ${a?.starter ?? '—'} · eldest coach ${a?staffSorted(a)[0]:'—'}</div></div>
+        </div>
+        <div class="vs">@</div>
+        <div class="team right">
+          <div><div class="name">${winnerSide==='home'?'✓ ':''}${esc(hn)}</div><div class="meta">Starter median ${h?.starter ?? '—'} · eldest coach ${h?staffSorted(h)[0]:'—'}</div></div>
+          <img class="logo" src="${esc(home.team.logo||'')}" alt="" />
+        </div>
+      </div>
+      <div class="pick"><strong>AGE PICK: ${esc(pick.winner || 'No pick')}</strong><div class="reason">${esc(pick.reason)}</div></div>
+    </article>`;
+  }).join('');
+  $('#games').innerHTML=html || '<div class="empty">No games returned for this week.</div>';
+  $('#gameCount').textContent=events.length;
+  $('#tieCount').textContent=ties;
+}
+
+function setStatus(msg,type=''){$('#status').textContent=msg;$('#dot').className='dot '+type;}
+
+function buildWeekSelect(max=18){
+  const s=$('#week'); s.innerHTML='';
+  for(let i=1;i<=max;i++){const o=document.createElement('option');o.value=i;o.textContent=`Week ${i}`;s.appendChild(o)}
+  if(currentWeek) s.value=currentWeek;
+}
+
+async function fetchJson(url){
+  const r=await fetch(url,{cache:'no-store'});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadCurrent(){
+  setStatus('Finding the NFL current week…');
+  try{
+    const data=await fetchJson(API);
+    seasonYear=data.season?.year || data.leagues?.[0]?.season?.year || new Date().getFullYear();
+    seasonType=data.season?.type || data.leagues?.[0]?.season?.type?.type || 2;
+    currentWeek=data.week?.number || 1;
+    buildWeekSelect(seasonType===2?18:5);
+    $('#season').textContent=seasonYear;
+    $('#weekNo').textContent=currentWeek;
+    render(data);
+    setStatus(`Loaded ${seasonYear} ${seasonType===2?'regular season':'season'} Week ${currentWeek}.`,'ok');
+  }catch(err){
+    setStatus(`Could not fetch the live schedule: ${err.message}. Open this file with internet access and allow cross-origin requests.`,'err');
+    $('#games').innerHTML='<div class="empty">Live schedule unavailable. The age data is embedded, but the matchup list requires the ESPN scoreboard request.</div>';
+  }
+}
+
+async function loadWeek(w){
+  if(!seasonYear) return loadCurrent();
+  currentWeek=Number(w);
+  $('#week').value=currentWeek; $('#weekNo').textContent=currentWeek;
+  setStatus(`Loading Week ${currentWeek}…`);
+  try{
+    const url=`${API}?dates=${seasonYear}&seasontype=${seasonType}&week=${currentWeek}`;
+    const data=await fetchJson(url); render(data);
+    setStatus(`Loaded ${seasonYear} Week ${currentWeek}.`,'ok');
+  }catch(err){setStatus(`Week ${currentWeek} failed to load: ${err.message}`,'err')}
+}
+
+$('#week').addEventListener('change',e=>loadWeek(e.target.value));
+$('#prev').addEventListener('click',()=>{const v=Math.max(1,(currentWeek||1)-1);loadWeek(v)});
+$('#next').addEventListener('click',()=>{const max=seasonType===2?18:5;const v=Math.min(max,(currentWeek||1)+1);loadWeek(v)});
+$('#refresh').addEventListener('click',()=>loadWeek(currentWeek||1));
+loadCurrent();
+</script>
+</body>
+</html>
